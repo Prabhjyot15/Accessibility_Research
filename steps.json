@@ -1,0 +1,24 @@
+{
+  "steps": [
+    {
+      "description": "Shift focus to Left bar",
+      "action": "Ctrl+shift+I"
+    },
+    {
+      "description": "Open quick switcher",
+      "action": "Ctrl+k"
+    },
+    {
+      "description": "Create new item",
+      "action": "type /create and press Enter"
+    },
+    {
+      "description": "Enter name and confirm",
+      "action": "Type Name and Press Tab key 2 times and then enter"
+    },
+    {
+      "description": "Navigate through options",
+      "action": "Press tab key 3 times"
+    }
+  ]
+}
