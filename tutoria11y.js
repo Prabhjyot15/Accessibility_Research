@@ -21,71 +21,96 @@ const readStep = async (step) => {
   });
 };
 
-const simulateKeyboardInput = async (keys) => {
+// Function to simulate keyboard input based on action type
+const simulateAction = async (action) => {
   return new Promise((resolve, reject) => {
+    const listener = new GlobalKeyboardListener();
+    let success = false;
     let index = 0;
 
-    const listener = new GlobalKeyboardListener();
-
     const handleKeypress = (e, down) => {
-      console.log(
-        `${e.name} ${e.state == "DOWN" ? "DOWN" : "UP"} [${e.rawKey._nameRaw}]`
-      );
+      const pressedKey = e.name.toLowerCase();
+      console.log(`Pressed key: ${pressedKey}`);
 
-      const expectedKey = keys[index].toLowerCase();
-
-      if (
-        e.state == "DOWN" &&
-        e.name.toLowerCase() === expectedKey ||
-        (expectedKey === 'ctrl' && (down["LEFT CTRL"] || down["RIGHT CTRL"])) ||
-        (expectedKey === 'shift' && (down["LEFT SHIFT"] || down["RIGHT SHIFT"]))
-      ) {
-        index++;
-        if (index === keys.length) {
-          listener.stop();
-          resolve(true); 
+      // Normalize pressed key
+      const normalizePressedKey = (key) => {
+        switch (key) {
+          case 'left ctrl':
+          case 'right ctrl':
+            return 'ctrl';
+          case 'left shift':
+          case 'right shift':
+            return 'shift';
+          case 'forward slash':
+            return '/'; // Normalize "/" to "forward slash"
+          default:
+            return key.toLowerCase();
         }
-      } else {
-        // Incorrect key pressed
-        console.log(`Incorrect key pressed. Expected: ${keys[index].toUpperCase()}`);
-        index = 0;
+      };
+
+      const normalizedPressedKey = normalizePressedKey(pressedKey);
+
+      // Check if the action type is 'string'
+      if (action.type === 'string') {
+        // Convert action value to lowercase for case insensitivity
+        const expectedString = action.value.toLowerCase();
+        
+        // Match full expectedString only when finished entering it
+        if (normalizedPressedKey === expectedString[index]) {
+          index++;
+          if (index === expectedString.length) {
+            success = true;
+            listener.stop();
+            resolve(true);
+          }
+        } else {
+          // Reset on incorrect key press
+          index = 0;
+        }
+      } else if (action.type === 'keyboard') {
+        // Check if the action type is 'keyboard' and handle key sequences
+        const expectedKeys = action.keys.map(key => key.toLowerCase());
+        if (normalizedPressedKey === expectedKeys[index]) {
+          index++;
+          if (index === expectedKeys.length) {
+            success = true;
+            listener.stop();
+            resolve(true);
+          }
+        } else {
+          // Reset on incorrect key press
+          index = 0;
+        }
       }
     };
 
     listener.addListener(handleKeypress);
     listener.start();
 
-    console.log(`Press: ${keys.join(' + ')} (no Enter needed):`);
+    if (action.type === 'string') {
+      console.log(`Enter string: ${action.value}`);
+    } else {
+      console.log(`Press: ${action.keys.join(' + ')} (no Enter needed):`);
+    }
+
+    // Timeout to handle action timeout scenarios (adjust time as needed)
+    setTimeout(() => {
+      if (!success) {
+        listener.stop();
+        reject(new Error('Action timeout'));
+      }
+    }, 60000); // Adjust timeout value (in milliseconds) as per your requirement
   });
 };
-
-// Example usage
-simulateKeyboardInput(['ctrl', 'shift', 'i']).then(result => {
-  console.log('Input successful:', result);
-}).catch(err => {
-  console.error('Error:', err);
-});
 
 // Main function to run the tutorial
 const runTutorial = async () => {
   try {
     for (let step of steps) {
-      await readStep(step);
-
-      const keys = step.action.split('+').map(key => key.trim()); // Split action into keys
-      console.log(`Waiting for input: ${step.action}`);
-
-      let userInput = await simulateKeyboardInput(keys);
-
-      if (userInput) {
-        console.log('Correct input!\n');
-      } else {
-        console.log(`Incorrect input. Expected: ${step.action}\n`);
-        await readStep(step); // Repeat the step description
-        await simulateKeyboardInput(keys); // Repeat the input simulation
-      }
+      await readStep(step); // Read step description
+      await simulateAction(step.action); // Simulate the action defined in JSON
+      console.log('Step completed successfully.\n');
     }
-
     console.log('Tutorial completed.');
   } catch (error) {
     console.error('Error during tutorial:', error);

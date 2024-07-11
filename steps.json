@@ -1,24 +1,24 @@
 {
   "steps": [
     {
-      "description": "Shift focus to Left bar",
-      "action": "Ctrl+shift+I"
+      "action": {
+        "type": "keyboard",
+        "keys": ["Ctrl", "Shift", "K"]
+      },
+      "description": "Press Ctrl+Shift+K to perform a specific action."
     },
     {
-      "description": "Open quick switcher",
-      "action": "Ctrl+k"
+      "action": {
+        "type": "string",
+        "value": "/create"
+      },
+      "description": "Enter '/create' to perform another action."
     },
     {
-      "description": "Create new item",
-      "action": "type /create and press Enter"
-    },
-    {
-      "description": "Enter name and confirm",
-      "action": "Type Name and Press Tab key 2 times and then enter"
-    },
-    {
-      "description": "Navigate through options",
-      "action": "Press tab key 3 times"
-    }
-  ]
-}
+      "action": {
+        "type": "tab",
+        "count": 3
+      },
+      "description": "Press the Tab key 3 times to navigate."
+    
+}]}

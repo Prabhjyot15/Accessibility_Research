@@ -14,7 +14,6 @@
     "electron": "^31.1.0",
     "fs": "^0.0.1-security",
     "fs-extra": "^11.2.0",
-    "iohook": "^0.9.3",
     "keyboard-key": "^1.1.0",
     "keypress": "^0.2.1",
     "node-global-key-listener": "^0.3.0",
