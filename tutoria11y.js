@@ -1,18 +1,27 @@
-const fs = require('fs');
-const { join } = require('path');
-const say = require('say');
-const { GlobalKeyboardListener } = require('node-global-key-listener');
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import say from "say";
+import { GlobalKeyboardListener } from "node-global-key-listener";
+
+// Get the directory name of the current module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load steps from JSON file
-const steps = JSON.parse(fs.readFileSync(join(__dirname, 'steps.json'))).steps;
+const steps = JSON.parse(
+  fs.readFileSync(
+    path.join(__dirname, "./accessibility-guides/create-channel-private.json")
+  )
+).steps;
 
 // Function to read out a step description using text-to-speech
-const readStep = async (step) => {
+const readStep = (step) => {
   return new Promise((resolve, reject) => {
-    const voice = 'Microsoft David Desktop'; // or 'Microsoft Zira Desktop'
+    const voice = "Microsoft David Desktop"; // or 'Microsoft Zira Desktop'
     say.speak(step.description, voice, 1.0, (err) => {
       if (err) {
-        console.error('Error speaking:', err);
+        console.error("Error speaking:", err);
         reject(err);
       } else {
         resolve();
@@ -113,7 +122,7 @@ const runTutorial = async () => {
     }
     console.log('Tutorial completed.');
   } catch (error) {
-    console.error('Error during tutorial:', error);
+    console.error("Error during tutorial:", error);
   }
 };
 
