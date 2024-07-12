@@ -3,16 +3,30 @@
     {
       "action": {
         "type": "keyboard",
-        "keys": ["Ctrl", "Shift", "K"]
+        "keys": ["Ctrl", "K"]
       },
-      "description": "Press Ctrl+Shift+K to perform a specific action."
+      "description": "Press Ctrl+K to Open the Quick Launcher."
     },
     {
       "action": {
         "type": "string",
         "value": "/create"
       },
-      "description": "Enter '/create' to perform another action."
+      "description": "Enter '/create' to create the channel."
+    },
+    {
+      "action": {
+        "type": "tab",
+        "count": 1
+      },
+      "description": "Press the Tab key 1 time to navigate."
+    },
+    {
+      "action": {
+        "type": "keyboard",
+        "keys": ["Return"]
+      },
+      "description": "Press Enter Key to navigate."
     },
     {
       "action": {
@@ -20,5 +34,6 @@
         "count": 3
       },
       "description": "Press the Tab key 3 times to navigate."
-    
-}]}
+    }
+  ]
+}
