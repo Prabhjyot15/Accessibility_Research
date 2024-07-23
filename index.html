@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Tutoria11y</title>
+  <link rel="stylesheet" href="node_modules/bootstrap/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="styles.css"> 
+</head>
+<body>
+  <div class="container">
+    <h1 class="h3">Tutoria11y for Slack</h1>
+    <button id="start-tutorial" class="btn button-primary">Start Tutorial</button>
+    <div id="accessibility-tree" style="white-space: pre-wrap;"></div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    document.getElementById('start-tutorial').addEventListener('click', () => {
+      ipcRenderer.send('start-tutorial', 'accessibility-guides/create-channel-private.json'); // Replace with your tutorial JSON file
+    });
+
+    // IPC event listener to receive accessibility tree updates
+    ipcRenderer.on('accessibility-tree-updated', (event, accessibilityTree) => {
+      const accessibilityTreeContainer = document.getElementById('accessibility-tree');
+      accessibilityTreeContainer.textContent = JSON.stringify(accessibilityTree, null, 2);
+    });
+
+    // IPC event to request accessibility tree update from main process
+    ipcRenderer.send('get-accessibility-tree');
+
+  </script>
+</body>
+</html>
