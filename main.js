@@ -4,6 +4,7 @@ const fs = require('fs');
 const say = require('say');
 const { GlobalKeyboardListener } = require('node-global-key-listener');
 const processWindows = require('node-process-windows');
+const { exec } = require('child_process');
 
 let mainWindow;
 
@@ -36,7 +37,6 @@ const createWindow = () => {
   // Listen for accessibility tree updates
   mainWindow.webContents.on('did-attach-accessibility-tree', (event, accessibleTree, rawAccessibilityTree) => {
     console.log('Accessibility tree updated:', accessibleTree);
-    // You can log or process the accessibility tree data here
     mainWindow.webContents.send('accessibility-tree-updated', accessibleTree); // Send to renderer process
   });
 };
@@ -86,14 +86,7 @@ const handleFailure = (index) => {
 };
 
 // Function to handle keypress events
-const handleKeypress = (
-  e,
-  action,
-  index,
-  pressedKeys,
-  listener,
-  resolve
-) => {
+const handleKeypress = (e, action, index, pressedKeys, listener, resolve) => {
   const pressedKey = e.name.toLowerCase();
   console.log(`Pressed key: ${pressedKey}`);
 
@@ -116,12 +109,10 @@ const handleKeypress = (
   const normalizedPressedKey = normalizePressedKey(pressedKey);
 
   // Handle key down event
-  if (e.state == "DOWN" && !pressedKeys[normalizedPressedKey]) {
+  if (e.state === "DOWN" && !pressedKeys[normalizedPressedKey]) {
     pressedKeys[normalizedPressedKey] = true;
     const expectedString = action.value ? action.value.toLowerCase() : "";
-    const expectedKeys = action.keys
-      ? action.keys.map((key) => key.toLowerCase())
-      : [];
+    const expectedKeys = action.keys ? action.keys.map((key) => key.toLowerCase()) : [];
 
     switch (action.type) {
       case "string":
@@ -158,7 +149,7 @@ const handleKeypress = (
   }
 
   // Handle key up event
-  if (e.state == "UP") {
+  if (e.state === "UP") {
     delete pressedKeys[normalizedPressedKey];
   }
 
@@ -173,15 +164,8 @@ const simulateActionInSlack = async (action) => {
     let index = 0;
     let pressedKeys = {};
 
-    const handleKeypressWrapper = (e, down) => {
-      const result = handleKeypress(
-        e,
-        action,
-        index,
-        pressedKeys,
-        listener,
-        resolve
-      );
+    const handleKeypressWrapper = (e) => {
+      const result = handleKeypress(e, action, index, pressedKeys, listener, resolve);
       index = result.index;
       if (result.success) {
         success = true;
@@ -218,8 +202,8 @@ const runTutorial = async (tutorialFile) => {
     const steps = tutorialData.steps;
 
     // Open Slack and run tutorial
-    //openSlack();
-    //await waitForSlackActive();
+    // openSlack();
+    // await waitForSlackActive();
 
     for (let step of steps) {
       await readStep(step);
@@ -258,6 +242,23 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 // IPC Event Handler to start tutorial from renderer process
 ipcMain.on('start-tutorial', (event, tutorialFile) => {
   runTutorial(tutorialFile);
+});
+
+// IPC Event Handler to get the UI tree from .NET application
+ipcMain.on('get-ui-tree', (event) => {
+  exec('dotnet run UIAutomationDemo.csproj', (error, stdout, stderr) => {
+    if (error) {
+      console.error(`Error running .NET application: ${error.message}`);
+      return;
+    }
+    if (stderr) {
+      console.error(`stderr: ${stderr}`);
+      return;
+    }
+
+    // Send the UI tree data to the renderer process
+    mainWindow.webContents.send('ui-tree-updated', stdout);
+  });
 });
 
 // IPC Event Handler to send accessibility tree updates to renderer process

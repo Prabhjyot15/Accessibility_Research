@@ -14,6 +14,7 @@
   "description": "",
   "devDependencies": {
     "electron": "^31.2.0",
+    "electron-rebuild": "^3.2.9",
     "node-global-key-listener": "^0.3.0",
     "say": "^0.16.0"
   },
@@ -24,6 +25,8 @@
     "bootstrap": "^5.3.3",
     "node-process-windows": "^0.0.2",
     "@babel/cli": "^7.18.10",
+    "electron": "^24.0.0",
+    "electron-edge-js": "^29.0.0",
     "@babel/core": "^7.18.10",
     "@babel/preset-env": "^7.18.10"
   }
