@@ -135,6 +135,82 @@ def get_workspace_info():
         print(f"An unexpected error occurred: {e}")
         return None
 
+def switch_channel(channel_name):
+    try:
+        channels_response = client.conversations_list(types='public_channel,private_channel')
+        channels = channels_response['channels']
+        print(f"Available channels: {[ch['name'] for ch in channels]}") 
+        channel = next((ch for ch in channels if ch['name'] == channel_name), None)
+        if channel:
+            conversation_state['current_channel_id'] = channel['id']
+            print(f"Switched to channel ID: {channel['id']}") 
+            say(f"Switched to the {channel_name} channel.")
+            return f"Switched to the {channel_name} channel."
+        else:
+            return f"Channel {channel_name} not found."
+    except SlackApiError as e:
+        print(f"Error switching channel: {e.response['error']}")
+        return "Failed to switch channel."
+
+def navigate_messages(direction):
+    channel_id = conversation_state.get('current_channel_id')
+    if not channel_id:
+        return "No channel selected. Please switch to a channel first."
+
+    try:
+        history_response = client.conversations_history(channel=channel_id, limit=2)
+        messages = history_response['messages']
+        if direction == "next":
+            if len(messages) > 1:
+                return messages[1]['text']  
+            else:
+                return "No more messages."
+        elif direction == "previous":
+            if len(messages) > 0:
+                return messages[0]['text']  
+            else:
+                return "No previous messages."
+        else:
+            return "Invalid direction."
+    except SlackApiError as e:
+        print(f"Error navigating messages: {e.response['error']}")
+        return "Failed to navigate messages."
+    
+def provide_help():
+    help_text = (
+        "Here are the commands you can use:\n"
+        "- 'Switch to [channel name]' to navigate between channels.\n"
+        "- 'Read previous/next message' to navigate messages.\n"
+        "- 'Help' to get this help message.\n"
+        "- 'Feedback [your feedback]' to provide feedback.\n"
+        "- 'Channel link [channel name]' to get a link to a specific channel."
+    )
+    return help_text
+
+def handle_feedback(feedback):
+    with open('feedback.log', 'a') as f:
+        f.write(feedback + '\n')
+    return "Thank you for your feedback!"
+
+def provide_channel_link(channel_name):
+    try:
+        channels_response = client.conversations_list(types='public_channel,private_channel')
+        channels = channels_response['channels']
+        print(f"Available channels: {[ch['name'] for ch in channels]}") 
+        channel = next((ch for ch in channels if ch['name'] == channel_name), None)
+        if channel:
+            channel_id = channel['id']
+            channel_link = f"https://slack.com/app_redirect?channel={channel_id}"
+            say(f"Here is the link to the {channel_name} channel: {channel_link}. Click it to open the channel.")
+            print(f"Generated channel link: {channel_link}") 
+            return f"Link to {channel_name} channel sent."
+        else:
+            return f"Channel {channel_name} not found."
+    except SlackApiError as e:
+        print(f"Error providing channel link: {e.response['error']}")
+        return "Failed to provide channel link."
+
+
 @app.route('/api/command', methods=['POST'])
 def command():
     data = request.json
@@ -185,6 +261,21 @@ def command():
             response_text = f"Active users are: {', '.join(active_users)}."
         else:
             response_text = "Failed to fetch active users."
+
+    elif "channel link" in query:
+        channel_name = query.split("channel link")[-1].strip()
+        response_text = provide_channel_link(channel_name)
+
+    elif "switch to" in query:
+        channel_name = query.split("switch to")[-1].strip()
+        response_text = switch_channel(channel_name)
+
+    elif "read previous message" in query:
+        response_text = navigate_messages("previous")
+
+    elif "read next message" in query:
+        response_text = navigate_messages("next")  
+
     elif "where am i" in query:
         workspace_info = get_workspace_info()
         if workspace_info:
@@ -202,7 +293,6 @@ def command():
             conversation_state['workspace_info'] = workspace_info
         else:
             response_text = "Failed to fetch workspace information."
-
 
     # Handling follow-up response
     elif "yes" in query and conversation_state.get('awaiting_follow_up'):
