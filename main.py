@@ -10,7 +10,9 @@ from config import Config
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-import json
+from transformers import pipeline
+import requests
+from bs4 import BeautifulSoup
 
 load_dotenv()
 
@@ -209,7 +211,22 @@ def provide_channel_link(channel_name):
     except SlackApiError as e:
         print(f"Error providing channel link: {e.response['error']}")
         return "Failed to provide channel link."
+    
+def get_context_from_web(query):
+    search_url = f"https://www.google.com/search?q={query}"
+    response = requests.get(search_url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    paragraphs = soup.find_all('p')
+    context = " ".join([para.get_text() for para in paragraphs])
+    return context
 
+def answer_general_question(question):
+    qa_pipeline = pipeline("question-answering", model="distilbert-base-uncased-distilled-squad")
+    context = get_context_from_web(question)
+    result = qa_pipeline(question=question, context=context)
+    return result['answer']
+
+print(answer_general_question("What is the capital of France?"))
 
 @app.route('/api/command', methods=['POST'])
 def command():
@@ -276,7 +293,7 @@ def command():
     elif "read next message" in query:
         response_text = navigate_messages("next")  
 
-    elif "where am i" in query:
+    elif any(phrase in query for phrase in ["where am i", "overview", "workspace info", "workspace information"]):
         workspace_info = get_workspace_info()
         if workspace_info:
             response_text = (
@@ -293,7 +310,6 @@ def command():
             conversation_state['workspace_info'] = workspace_info
         else:
             response_text = "Failed to fetch workspace information."
-
     # Handling follow-up response
     elif "yes" in query and conversation_state.get('awaiting_follow_up'):
         workspace_info = conversation_state.get('workspace_info', {})
@@ -308,6 +324,8 @@ def command():
         response_text = "Okay, I won't read out the names of online users."
         conversation_state['awaiting_follow_up'] = False
 
+    else:
+        response_text = answer_general_question(query)
     say(response_text)
     return jsonify({'response': response_text})
 
