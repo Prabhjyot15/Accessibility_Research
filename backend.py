@@ -5,15 +5,16 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests
 from bs4 import BeautifulSoup
-# from dotenv import load_dotenv
+from dotenv import load_dotenv
 from transformers import pipeline
 
-# load_dotenv()
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-SLACK_BOT_TOKEN = "xoxb-7483904268720-7461037529811-zoO8d7od5pEoga2ag87pZj8I"
+
+SLACK_BOT_TOKEN = os.getenv('SLACK_BOT_TOKEN')
 client = WebClient(token=SLACK_BOT_TOKEN)
 
 # Global state to perform follow-ups
