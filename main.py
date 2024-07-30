@@ -13,6 +13,15 @@ from dotenv import load_dotenv
 from transformers import pipeline
 import requests
 from bs4 import BeautifulSoup
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.metrics import accuracy_score, classification_report
+import json
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.utils import resample
 
 load_dotenv()
 
@@ -25,6 +34,66 @@ CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # Global state to perform follow ups
 conversation_state = {}
+
+def load_and_train_model():
+    with open('data.json', 'r') as f:
+        data = json.load(f)
+    df = pd.DataFrame(data)
+
+    # Determine the class with the most examples
+    max_class_size = df['intent'].value_counts().max()
+
+    # Separating the data by intent
+    df_majority = df[df['intent'] == 'create channel']
+    df_workspace = df[df['intent'] == 'workspace overview']
+    df_help = df[df['intent'] == 'help']
+    df_greeting = df[df['intent'] == 'greeting']
+
+    # Resampling the minority classes by duplicating them
+    df_workspace_upsampled = resample(df_workspace, 
+                                      replace=True,   
+                                      n_samples=max_class_size,    
+                                      random_state=42)
+
+    df_help_upsampled = resample(df_help, 
+                                 replace=True, 
+                                 n_samples=max_class_size, 
+                                 random_state=42)
+
+    df_greeting_upsampled = resample(df_greeting, 
+                                     replace=True, 
+                                     n_samples=max_class_size, 
+                                     random_state=42)
+
+    df_balanced = pd.concat([df_majority, df_workspace_upsampled, df_help_upsampled, df_greeting_upsampled])
+
+    # Shuffling the dataset
+    df_balanced = df_balanced.sample(frac=1, random_state=42).reset_index(drop=True)
+
+    # TF-IDF Vectorization
+    vectorizer = TfidfVectorizer(lowercase=True, stop_words='english')
+    X = vectorizer.fit_transform(df_balanced['text'])
+    y = df_balanced['intent']
+
+    # Splitting data into training and test sets
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    # Model training
+    model = MultinomialNB()
+    model.fit(X_train, y_train)
+
+    # Evaluating the model
+    y_pred = model.predict(X_test)
+    accuracy = accuracy_score(y_test, y_pred)
+    return model, vectorizer
+
+model, vectorizer = load_and_train_model()
+
+# Function to determine user's query intent
+def determine_intent(query):
+    new_sentence_vectorized = vectorizer.transform([query])
+    predicted_intent = model.predict(new_sentence_vectorized)
+    return predicted_intent[0]
 
 def create_channel(channel_name):
     try:
@@ -221,28 +290,30 @@ def get_context_from_web(query):
     return context
 
 def answer_general_question(question):
-    qa_pipeline = pipeline("question-answering", model="distilbert-base-uncased-distilled-squad")
-    context = get_context_from_web(question)
-    result = qa_pipeline(question=question, context=context)
-    return result['answer']
-
-print(answer_general_question("What is the capital of France?"))
+    print("WIP")
+    # qa_pipeline = pipeline("question-answering", model="distilbert-base-uncased-distilled-squad")
+    # context = get_context_from_web(question)
+    # result = qa_pipeline(question=question, context=context)
+    # return result['answer']
 
 @app.route('/api/command', methods=['POST'])
 def command():
     data = request.json
     query = data.get('query', '').lower()
     response_text = "Failed to process command."
-    if "hello" in query or "hi" in query or "hey" in query or "wake up" in query:
+
+    # Determining intent
+    intent = determine_intent(query)
+    if intent == "greeting":
         greetMe()
         response_text = "Hello! How can I assist you today?"
 
-    elif "fetch slack elements" in query:
+    elif intent == "fetch slack elements":
         print(f"Received command: {query}")  # Debugging print
         scrape_slack_dom_elements()
         response_text = "Slack elements fetched. Check the console for details."
 
-    elif "create channel" in query:
+    elif intent == "create channel":
         say("Do you want me to read aloud the keyboard shortcuts for creating a channel?")
         read_shortcut_create_channel()
         channel_name = query.split("create channel")[-1].strip()
@@ -252,6 +323,38 @@ def command():
         else:
             response_text = "Failed to create channel."
 
+    elif intent == "workspace overview":
+        workspace_info = get_workspace_info()
+        if workspace_info:
+            response_text = (
+                f"You are currently in the workspace: {workspace_info['workspace']}\n"
+                f"Number of unread messages: {workspace_info['unread_messages']}\n"
+                f"Number of online users: {len(workspace_info['online_users'])}\n"
+                f"Current user: {workspace_info['current_user']['name']}, {workspace_info['current_user']['title']}\n"
+                f"Status: {workspace_info['current_user']['status']}\n"
+                f"Channels:\n"
+                + '\n'.join(f"- {channel['name']} ({channel['purpose']}) - Messages: {channel['num_messages']}, Unread: {channel['unread_messages']}" for channel in workspace_info['channels']) + '\n'
+                f"Do you want me to read out who is online? (yes/no)"
+        )
+            conversation_state['awaiting_follow_up'] = True
+            conversation_state['workspace_info'] = workspace_info
+        else:
+            response_text = "Failed to fetch workspace information."
+    # Handling follow-up response
+    elif "yes" in query and conversation_state.get('awaiting_follow_up'):
+        workspace_info = conversation_state.get('workspace_info', {})
+        online_users = workspace_info.get('online_users', [])
+        if online_users:
+            response_text = f"Online users: {', '.join(online_users)}"
+        else:
+            response_text = "No users are currently online."
+        conversation_state['awaiting_follow_up'] = False
+
+    elif "no" in query and conversation_state.get('awaiting_follow_up'):
+        response_text = "Okay, I won't read out the names of online users."
+        conversation_state['awaiting_follow_up'] = False
+
+    #WIP
     elif "open threads" in query:
         say("Do you want me to read aloud the keyboard shortcuts for opening threads?")
         read_shortcut_open_threads()
@@ -292,37 +395,6 @@ def command():
 
     elif "read next message" in query:
         response_text = navigate_messages("next")  
-
-    elif any(phrase in query for phrase in ["where am i", "overview", "workspace info", "workspace information"]):
-        workspace_info = get_workspace_info()
-        if workspace_info:
-            response_text = (
-                f"You are currently in the workspace: {workspace_info['workspace']}\n"
-                f"Number of unread messages: {workspace_info['unread_messages']}\n"
-                f"Number of online users: {len(workspace_info['online_users'])}\n"
-                f"Current user: {workspace_info['current_user']['name']}, {workspace_info['current_user']['title']}\n"
-                f"Status: {workspace_info['current_user']['status']}\n"
-                f"Channels:\n"
-                + '\n'.join(f"- {channel['name']} ({channel['purpose']}) - Messages: {channel['num_messages']}, Unread: {channel['unread_messages']}" for channel in workspace_info['channels']) + '\n'
-                f"Do you want me to read out who is online? (yes/no)"
-        )
-            conversation_state['awaiting_follow_up'] = True
-            conversation_state['workspace_info'] = workspace_info
-        else:
-            response_text = "Failed to fetch workspace information."
-    # Handling follow-up response
-    elif "yes" in query and conversation_state.get('awaiting_follow_up'):
-        workspace_info = conversation_state.get('workspace_info', {})
-        online_users = workspace_info.get('online_users', [])
-        if online_users:
-            response_text = f"Online users: {', '.join(online_users)}"
-        else:
-            response_text = "No users are currently online."
-        conversation_state['awaiting_follow_up'] = False
-
-    elif "no" in query and conversation_state.get('awaiting_follow_up'):
-        response_text = "Okay, I won't read out the names of online users."
-        conversation_state['awaiting_follow_up'] = False
 
     else:
         response_text = answer_general_question(query)
