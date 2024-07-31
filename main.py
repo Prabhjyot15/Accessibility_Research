@@ -3,12 +3,10 @@ from flask_cors import CORS
 import os
 from speak import say
 from listen import takeCommand
-from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
 from greeting import greetMe
 from config import Config
-import requests
-from bs4 import BeautifulSoup
+from sklearn.linear_model import LogisticRegression
+from botFunc import conversation_state
 from dotenv import load_dotenv
 from transformers import pipeline
 import requests
@@ -22,6 +20,7 @@ import json
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.utils import resample
+from botFunc import extract_channel_name, provide_channel_link,create_channel,get_active_users,navigate_messages, switch_channel, read_all_shortcuts,read_shortcut_create_channel,read_shortcut_open_direct_messages,read_shortcut_open_drafts,read_shortcut_open_mentions_reactions,read_shortcut_open_threads,switch_channel,scrape_slack_dom_elements,provide_help,answer_general_question,get_workspace_info,get_context_from_web
 
 load_dotenv()
 
@@ -29,62 +28,73 @@ app = Flask(__name__)
 app.config.from_object(Config)
 
 SLACK_BOT_TOKEN = os.getenv('SLACK_BOT_TOKEN')
-client = WebClient(token=SLACK_BOT_TOKEN)
+
+#client = WebClient(token=SLACK_BOT_TOKEN)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # Global state to perform follow ups
-conversation_state = {}
 
 def load_and_train_model():
     with open('data.json', 'r') as f:
         data = json.load(f)
+
+    # Convert JSON data to DataFrame
     df = pd.DataFrame(data)
 
     # Determine the class with the most examples
     max_class_size = df['intent'].value_counts().max()
 
-    # Separating the data by intent
+    # Separate the data by intent
     df_majority = df[df['intent'] == 'create channel']
     df_workspace = df[df['intent'] == 'workspace overview']
     df_help = df[df['intent'] == 'help']
     df_greeting = df[df['intent'] == 'greeting']
+    df_general = df[df['intent'] == 'general']
 
-    # Resampling the minority classes by duplicating them
+    # Resample the minority classes by duplicating them
     df_workspace_upsampled = resample(df_workspace, 
-                                      replace=True,   
-                                      n_samples=max_class_size,    
-                                      random_state=42)
+                                  replace=True,    
+                                  n_samples=max_class_size,    
+                                  random_state=42)
 
     df_help_upsampled = resample(df_help, 
+                             replace=True, 
+                             n_samples=max_class_size, 
+                             random_state=42)
+
+    df_greeting_upsampled = resample(df_greeting, 
                                  replace=True, 
                                  n_samples=max_class_size, 
                                  random_state=42)
 
-    df_greeting_upsampled = resample(df_greeting, 
-                                     replace=True, 
-                                     n_samples=max_class_size, 
-                                     random_state=42)
+    df_general_upsampled = resample(df_general, 
+                                 replace=True, 
+                                 n_samples=max_class_size, 
+                                 random_state=42)
 
-    df_balanced = pd.concat([df_majority, df_workspace_upsampled, df_help_upsampled, df_greeting_upsampled])
+    # Combine the upsampled minority classes with the majority class
+    df_balanced = pd.concat([df_majority, df_workspace_upsampled, df_help_upsampled, df_greeting_upsampled, df_general_upsampled])
 
-    # Shuffling the dataset
+    # Shuffle the dataset
     df_balanced = df_balanced.sample(frac=1, random_state=42).reset_index(drop=True)
 
+    # Save the balanced dataset to a new JSON file
+    balanced_data = df_balanced.to_dict(orient='list')
+    with open('balanced_data.json', 'w') as f:
+        json.dump(balanced_data, f)
+
+
     # TF-IDF Vectorization
-    vectorizer = TfidfVectorizer(lowercase=True, stop_words='english')
+    vectorizer = TfidfVectorizer(lowercase=True, stop_words='english', ngram_range=(1, 2), max_features=5000)
     X = vectorizer.fit_transform(df_balanced['text'])
     y = df_balanced['intent']
 
-    # Splitting data into training and test sets
+    # Split data into training and test sets
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    # Model training
-    model = MultinomialNB()
+# Model training with Logistic Regression
+    model = LogisticRegression(max_iter=1000)
     model.fit(X_train, y_train)
-
-    # Evaluating the model
-    y_pred = model.predict(X_test)
-    accuracy = accuracy_score(y_test, y_pred)
     return model, vectorizer
 
 model, vectorizer = load_and_train_model()
@@ -95,217 +105,60 @@ def determine_intent(query):
     predicted_intent = model.predict(new_sentence_vectorized)
     return predicted_intent[0]
 
-def create_channel(channel_name):
-    try:
-        response = client.conversations_create(name=channel_name)
-        return response['channel']['id']
-    except SlackApiError as e:
-        print(f"Error creating channel: {e.response['error']}")
-        return None
-
-def get_active_users():
-    try:
-        response = client.users_list()
-        active_users = [user['name'] for user in response['members'] if user.get('presence') == 'active']
-        return active_users
-    except SlackApiError as e:
-        print(f"Error fetching users: {e.response['error']}")
-        return None
-
-def read_shortcut_create_channel():
-    say("To create a channel, use Ctrl + Shift + K")
-
-def read_shortcut_open_threads():
-    say("To open threads, use Ctrl + Shift + T")
-
-def read_shortcut_open_mentions_reactions():
-    say("To open mentions and reactions, use Ctrl + Shift + M")
-
-def read_shortcut_open_drafts():
-    say("To open drafts, use Ctrl + Shift + D")
-
-def read_shortcut_open_direct_messages():
-    say("To open direct messages, use Ctrl + Shift + J")
-
-def read_all_shortcuts():
-    read_shortcut_create_channel()
-    read_shortcut_open_threads()
-    read_shortcut_open_mentions_reactions()
-    read_shortcut_open_drafts()
-    read_shortcut_open_direct_messages()
-
-def scrape_slack_dom_elements():
-    print("scrape_slack_dom_elements() called")
-    try:
-        response = requests.get('https://slack.com', headers={'User-Agent': 'Mozilla/5.0'})
-        print(f"HTTP Status Code: {response.status_code}")
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            print(soup.prettify())
-        else:
-            print(f"Failed to retrieve Slack page. Status code: {response.status_code}")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-        return None        
-def get_workspace_info():
-    try:
-        # Fetch current workspace (team) info
-        auth_response = client.auth_test()
-        workspace_name = auth_response['team']
-
-        # Fetch the number of unread messages
-        channels_response = client.conversations_list(types='public_channel,private_channel')
-        unread_messages_count = 0
-        channel_info = []
-        for channel in channels_response['channels']:
-            if channel['is_member']:
-                try:
-                    history_response = client.conversations_history(channel=channel['id'], limit=100)
-                    unread_count = sum(1 for message in history_response['messages'] if 'unread_count_display' in message)
-                    unread_messages_count += unread_count
-                    channel_info.append({
-                        'name': channel['name'],
-                        'purpose': channel.get('purpose', {}).get('value', 'No purpose set'),
-                        'num_messages': len(history_response['messages']),
-                        'unread_messages': unread_count
-                    })
-                except SlackApiError as e:
-                    print(f"Error fetching history for channel {channel['name']}: {e.response['error']}")
-
-        # Fetchinng the number of online users
-        users_response = client.users_list()
-        online_users = []
-        for user in users_response['members']:
-            if not user['is_bot']:
-                try:
-                    presence_response = client.users_getPresence(user=user['id'])
-                    if presence_response['presence'] == 'active':
-                        online_users.append(user['real_name'])
-                except SlackApiError as e:
-                    print(f"Error fetching presence for user {user['name']}: {e.response['error']}")
-
-        # Fetching current user's profile info
-        user_profile_response = client.users_profile_get(user=auth_response['user_id'])
-        user_profile = user_profile_response.get('profile', {})
-
-        return {
-            'workspace': workspace_name,
-            'unread_messages': unread_messages_count,
-            'online_users': online_users,
-            'channels': channel_info,
-            'current_user': {
-                'name': user_profile.get('real_name', 'N/A'),
-                'title': user_profile.get('title', 'N/A'),
-                'status': user_profile.get('status_text', 'N/A')
-            }
-        }
-    except SlackApiError as e:
-        print(f"Error fetching workspace info: {e.response['error']}")
-        return None
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-        return None
-
-def switch_channel(channel_name):
-    try:
-        channels_response = client.conversations_list(types='public_channel,private_channel')
-        channels = channels_response['channels']
-        print(f"Available channels: {[ch['name'] for ch in channels]}") 
-        channel = next((ch for ch in channels if ch['name'] == channel_name), None)
-        if channel:
-            conversation_state['current_channel_id'] = channel['id']
-            print(f"Switched to channel ID: {channel['id']}") 
-            say(f"Switched to the {channel_name} channel.")
-            return f"Switched to the {channel_name} channel."
-        else:
-            return f"Channel {channel_name} not found."
-    except SlackApiError as e:
-        print(f"Error switching channel: {e.response['error']}")
-        return "Failed to switch channel."
-
-def navigate_messages(direction):
-    channel_id = conversation_state.get('current_channel_id')
-    if not channel_id:
-        return "No channel selected. Please switch to a channel first."
-
-    try:
-        history_response = client.conversations_history(channel=channel_id, limit=2)
-        messages = history_response['messages']
-        if direction == "next":
-            if len(messages) > 1:
-                return messages[1]['text']  
-            else:
-                return "No more messages."
-        elif direction == "previous":
-            if len(messages) > 0:
-                return messages[0]['text']  
-            else:
-                return "No previous messages."
-        else:
-            return "Invalid direction."
-    except SlackApiError as e:
-        print(f"Error navigating messages: {e.response['error']}")
-        return "Failed to navigate messages."
-    
-def provide_help():
-    help_text = (
-        "Here are the commands you can use:\n"
-        "- 'Switch to [channel name]' to navigate between channels.\n"
-        "- 'Read previous/next message' to navigate messages.\n"
-        "- 'Help' to get this help message.\n"
-        "- 'Feedback [your feedback]' to provide feedback.\n"
-        "- 'Channel link [channel name]' to get a link to a specific channel."
-    )
-    return help_text
-
-def handle_feedback(feedback):
-    with open('feedback.log', 'a') as f:
-        f.write(feedback + '\n')
-    return "Thank you for your feedback!"
-
-def provide_channel_link(channel_name):
-    try:
-        channels_response = client.conversations_list(types='public_channel,private_channel')
-        channels = channels_response['channels']
-        print(f"Available channels: {[ch['name'] for ch in channels]}") 
-        channel = next((ch for ch in channels if ch['name'] == channel_name), None)
-        if channel:
-            channel_id = channel['id']
-            channel_link = f"https://slack.com/app_redirect?channel={channel_id}"
-            say(f"Here is the link to the {channel_name} channel: {channel_link}. Click it to open the channel.")
-            print(f"Generated channel link: {channel_link}") 
-            return f"Link to {channel_name} channel sent."
-        else:
-            return f"Channel {channel_name} not found."
-    except SlackApiError as e:
-        print(f"Error providing channel link: {e.response['error']}")
-        return "Failed to provide channel link."
-    
-def get_context_from_web(query):
-    search_url = f"https://www.google.com/search?q={query}"
-    response = requests.get(search_url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    paragraphs = soup.find_all('p')
-    context = " ".join([para.get_text() for para in paragraphs])
-    return context
-
-def answer_general_question(question):
-    print("WIP")
-    # qa_pipeline = pipeline("question-answering", model="distilbert-base-uncased-distilled-squad")
-    # context = get_context_from_web(question)
-    # result = qa_pipeline(question=question, context=context)
-    # return result['answer']
-
 @app.route('/api/command', methods=['POST'])
 def command():
     data = request.json
     query = data.get('query', '').lower()
-    response_text = "Failed to process command."
+    response_text = ""
 
     # Determining intent
     intent = determine_intent(query)
-    if intent == "greeting":
-        greetMe()
+    if conversation_state.get('awaiting_follow_up') == 'create_channel':
+        if "yes" in query:
+            channel_name = query.split()[-1].strip()
+            channel_name = extract_channel_name(channel_name)
+            print("CHANNELLLL NAME")
+            channel_id = create_channel(channel_name)
+            print(channel_id)
+            if channel_id:
+                response_text = f"Channel {channel_name} created successfully."
+            else:
+                response_text = "Failed to create channel."
+        elif "no" in query:
+            response_text = "Okay, I won't create the channel."
+        conversation_state['awaiting_follow_up'] = None
+
+        return jsonify({"response": response_text})
+    elif conversation_state.get('awaiting_follow_up') == 'channel_members':
+        workspace_info = conversation_state.get('workspace_info', {})
+        channel_members = workspace_info.get('channel_members', [])
+        if channel_members:
+            response_text = f"Channel members: {', '.join(channel_members)}\nDo you want me to tell you who is online? Please say yes or no"
+            conversation_state['awaiting_follow_up'] = 'online_users'
+        else:
+            response_text = "Failed to fetch channel members.\nDo you want me to tell you who is online? Please say yes or no"
+            conversation_state['awaiting_follow_up'] = 'online_users'
+
+    elif conversation_state.get('awaiting_follow_up') == 'online_users':
+        if "yes" in query and conversation_state.get('awaiting_follow_up') == 'online_users':
+            workspace_info = conversation_state.get('workspace_info', {})
+            online_users = workspace_info.get('online_users', [])
+        if online_users:
+            response_text = f"Online users: {', '.join(online_users)}"
+        else:
+            response_text = "No users are currently online."
+        conversation_state['awaiting_follow_up'] = None
+
+    elif "no" in query and conversation_state.get('awaiting_follow_up') == 'online_users':
+        response_text = "Okay, I won't read out the names of online users."
+        conversation_state['awaiting_follow_up'] = None
+
+    elif "no" in query and conversation_state.get('awaiting_follow_up') == 'channel_members':
+        response_text = "Okay, I won't read out the channel members.\nDo you want me to tell you who is online? Please say yes or no"
+        conversation_state['awaiting_follow_up'] = 'online_users'
+
+    elif intent == "greeting":
+        #greetMe()
         response_text = "Hello! How can I assist you today?"
 
     elif intent == "fetch slack elements":
@@ -314,14 +167,19 @@ def command():
         response_text = "Slack elements fetched. Check the console for details."
 
     elif intent == "create channel":
-        say("Do you want me to read aloud the keyboard shortcuts for creating a channel?")
-        read_shortcut_create_channel()
-        channel_name = query.split("create channel")[-1].strip()
-        channel_id = create_channel(channel_name)
-        if channel_id:
-            response_text = f"Channel {channel_name} created successfully."
-        else:
-            response_text = "Failed to create channel."
+        say("Do you want me to read aloud the keyboard shortcuts for creating a channel? yes or no")
+        conversation_state['awaiting_follow_up'] = 'read_shortcut'
+        #conversation_state['channel_name'] = query.split("create channel")[-1].strip()
+
+    # Handling follow-up response for reading shortcuts
+    elif conversation_state.get('awaiting_follow_up') == 'read_shortcut':
+        if "yes" in query:
+            read_shortcut_create_channel()
+            say("Do you want me to create the channel for you? Please say 'yes' with the channel name or 'no' to cancel.")
+            conversation_state['awaiting_follow_up'] = 'create_channel'
+        elif "no" in query:
+            say("Do you want me to create the channel for you? Please say 'yes' with the channel name or 'no' to cancel.")
+            conversation_state['awaiting_follow_up'] = 'create_channel'
 
     elif intent == "workspace overview":
         workspace_info = get_workspace_info()
@@ -330,31 +188,33 @@ def command():
                 f"You are currently in the workspace: {workspace_info['workspace']}\n"
                 f"Number of unread messages: {workspace_info['unread_messages']}\n"
                 f"Number of online users: {len(workspace_info['online_users'])}\n"
-                f"Current user: {workspace_info['current_user']['name']}, {workspace_info['current_user']['title']}\n"
-                f"Status: {workspace_info['current_user']['status']}\n"
                 f"Channels:\n"
-                + '\n'.join(f"- {channel['name']} ({channel['purpose']}) - Messages: {channel['num_messages']}, Unread: {channel['unread_messages']}" for channel in workspace_info['channels']) + '\n'
-                f"Do you want me to read out who is online? (yes/no)"
+                + '\n'.join(f" Unread messages: {channel['unread_messages']}" for channel in workspace_info['channels']) + '\n'
+                f"Do you want me to read out the channel members? Please say yes or no"
         )
-            conversation_state['awaiting_follow_up'] = True
+            conversation_state['awaiting_follow_up'] = 'channel_members'
             conversation_state['workspace_info'] = workspace_info
         else:
             response_text = "Failed to fetch workspace information."
-    # Handling follow-up response
-    elif "yes" in query and conversation_state.get('awaiting_follow_up'):
+
+# Handling follow-up response for online users
+    elif "yes" in query and conversation_state.get('awaiting_follow_up') == 'online_users':
         workspace_info = conversation_state.get('workspace_info', {})
         online_users = workspace_info.get('online_users', [])
         if online_users:
             response_text = f"Online users: {', '.join(online_users)}"
         else:
             response_text = "No users are currently online."
-        conversation_state['awaiting_follow_up'] = False
+        conversation_state['awaiting_follow_up'] = None
 
-    elif "no" in query and conversation_state.get('awaiting_follow_up'):
+    elif "no" in query and conversation_state.get('awaiting_follow_up') == 'online_users':
         response_text = "Okay, I won't read out the names of online users."
-        conversation_state['awaiting_follow_up'] = False
+        conversation_state['awaiting_follow_up'] = None
 
     #WIP
+    elif intent == "general":
+        response_text = "How can I help you"
+
     elif "open threads" in query:
         say("Do you want me to read aloud the keyboard shortcuts for opening threads?")
         read_shortcut_open_threads()
@@ -397,7 +257,7 @@ def command():
         response_text = navigate_messages("next")  
 
     else:
-        response_text = answer_general_question(query)
+        response_text = answer_general_question(query) 
     say(response_text)
     return jsonify({'response': response_text})
 
