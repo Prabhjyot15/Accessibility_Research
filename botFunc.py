@@ -11,7 +11,7 @@ conversation_state = {}
 
 SLACK_BOT_TOKEN = os.getenv('SLACK_BOT_TOKEN')
 
-client = WebClient(token="xoxb-7483904268720-7461037529811-GwJTdr1UzDJELRgsnlDc0J8D")
+client = WebClient(token=SLACK_BOT_TOKEN)
 
 def create_channel(channel_name):
     try:
@@ -59,6 +59,70 @@ def read_all_shortcuts():
     read_shortcut_open_mentions_reactions()
     read_shortcut_open_drafts()
     read_shortcut_open_direct_messages()
+
+def get_current_user_id():
+    headers = {
+        'Authorization': f'Bearer {SLACK_BOT_TOKEN}',
+    }
+    response = requests.get('https://slack.com/api/auth.test', headers=headers)
+    
+    print("Response Status Code:", response.status_code)
+    print("Response Content:", response.json())
+
+    if response.status_code == 200:
+        data = response.json()
+        if data.get('ok'):
+            return data.get('user_id')
+        else:
+            print("Error:", data.get('error'))
+    else:
+        print("Failed to fetch user identity:", response.status_code)
+    
+    return None
+
+def list_active_channels(user_id):
+    headers = {
+        'Authorization': f'Bearer {SLACK_BOT_TOKEN}',
+        'Content-Type': 'application/json',
+    }
+    
+    active_channels = []
+    cursor = None
+    
+    while True:
+        params = {
+            'types': 'public_channel,private_channel',
+            'limit': 1000,
+        }
+        if cursor:
+            params['cursor'] = cursor
+        
+        response = requests.get('https://slack.com/api/conversations.list', headers=headers, params=params)
+        data = response.json()
+        
+        if not data.get('ok'):
+            print("Error fetching channels:", data.get('error'))
+            break
+        
+        channels = data.get('channels', [])
+        cursor = data.get('response_metadata', {}).get('next_cursor')
+        
+        for channel in channels:
+            channel_id = channel['id']
+            response = requests.get('https://slack.com/api/conversations.members', headers=headers, params={
+                'channel': channel_id
+            })
+            members = response.json().get('members', [])
+            
+            if user_id in members:
+                active_channels.append(channel)
+        
+        if not cursor:
+            break
+    
+    return active_channels
+
+
 
 def scrape_slack_dom_elements():
     print("scrape_slack_dom_elements() called")
@@ -223,7 +287,7 @@ def get_context_from_web(query):
     return context
 
 def answer_general_question(question):
-    print("WIP")
+    return "What do you need help with?"
     # qa_pipeline = pipeline("question-answering", model="distilbert-base-uncased-distilled-squad")
     # context = get_context_from_web(question)
     # result = qa_pipeline(question=question, context=context)
