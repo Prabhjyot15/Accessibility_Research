@@ -39,7 +39,7 @@ def extract_channel_name(channel_name):
     
 
 def read_shortcut_create_channel():
-    say("To create a channel, use Ctrl + Shift + K")
+    say("To create a channel, Press Ctrl+K to open the quick launcher then type /create and Press Enter. Please follow the instructions further")
 
 def read_shortcut_open_threads():
     say("To open threads, use Ctrl + Shift + T")
@@ -109,20 +109,74 @@ def list_active_channels(user_id):
         
         for channel in channels:
             channel_id = channel['id']
-            response = requests.get('https://slack.com/api/conversations.members', headers=headers, params={
+            members_response = requests.get('https://slack.com/api/conversations.members', headers=headers, params={
                 'channel': channel_id
             })
-            members = response.json().get('members', [])
+            members_data = members_response.json()
             
+            if not members_data.get('ok'):
+                print(f"Error fetching members for channel {channel_id}:", members_data.get('error'))
+                continue
+            
+            members = members_data.get('members', [])
             if user_id in members:
-                active_channels.append(channel)
+                active_channels.append(channel['name'])
         
         if not cursor:
             break
     
     return active_channels
 
-
+def get_channel_members(channel_name):
+    headers = {
+        'Authorization': f'Bearer {SLACK_BOT_TOKEN}',
+        'Content-Type': 'application/json',
+    }
+    
+    params = {
+        'types': 'public_channel,private_channel',
+        'limit': 1000,
+    }
+    
+    response = requests.get('https://slack.com/api/conversations.list', headers=headers, params=params)
+    data = response.json()
+    
+    if not data.get('ok'):
+        print("Error fetching channels:", data.get('error'))
+        return []
+    
+    channels = data.get('channels', [])
+    
+    for channel in channels:
+        if channel['name'] == channel_name:
+            channel_id = channel['id']
+            members_response = requests.get('https://slack.com/api/conversations.members', headers=headers, params={
+                'channel': channel_id
+            })
+            members_data = members_response.json()
+            
+            if not members_data.get('ok'):
+                print(f"Error fetching members for channel {channel_id}:", members_data.get('error'))
+                return []
+            
+            member_ids = members_data.get('members', [])
+            member_names = []
+            
+            for member_id in member_ids:
+                user_response = requests.get('https://slack.com/api/users.info', headers=headers, params={
+                    'user': member_id
+                })
+                user_data = user_response.json()
+                
+                if not user_data.get('ok'):
+                    print(f"Error fetching user info for user {member_id}:", user_data.get('error'))
+                    continue
+                
+                member_names.append(user_data['user']['real_name'])
+            
+            return member_names
+    
+    return ["No members found"]
 
 def scrape_slack_dom_elements():
     print("scrape_slack_dom_elements() called")
@@ -136,18 +190,19 @@ def scrape_slack_dom_elements():
             print(f"Failed to retrieve Slack page. Status code: {response.status_code}")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
-        return None        
+        return None  
+          
 def get_workspace_info():
+    channel_info = []
+    channels_members_info = {}
     try:
-        # Fetch current workspace (team) info
+    # Fetch current workspace (team) info
         auth_response = client.auth_test()
         workspace_name = auth_response['team']
 
-        # Fetch the number of unread messages
+    # Fetch the number of unread messages
         channels_response = client.conversations_list(types='public_channel,private_channel')
         unread_messages_count = 0
-        channel_info = []
-        channel_members = []
         for channel in channels_response['channels']:
             if channel['is_member']:
                 try:
@@ -155,20 +210,20 @@ def get_workspace_info():
                     unread_count = sum(1 for message in history_response['messages'] if 'unread_count_display' in message)
                     unread_messages_count += unread_count
                     channel_info.append({
-                        'name': channel['name'],
-                        'purpose': channel.get('purpose', {}).get('value', 'No purpose set'),
-                        'num_messages': len(history_response['messages']),
-                        'unread_messages': unread_count
+                    'name': channel['name'],
+                    'purpose': channel.get('purpose', {}).get('value', 'No purpose set'),
+                    'num_messages': len(history_response['messages']),
+                    'unread_messages': unread_count
                     })
-                    
-                    # Fetch channel members
+                
+                # Fetch channel members
                     members_response = client.conversations_members(channel=channel['id'])
-                    channel_members = [client.users_info(user=user_id)['user']['real_name'] for user_id in members_response['members']]
+                    channels_members_info[channel['name']] = [client.users_info(user=user_id)['user']['real_name'] for user_id in members_response['members']]
 
                 except SlackApiError as e:
                     print(f"Error fetching history for channel {channel['name']}: {e.response['error']}")
 
-        # Fetch the number of online users
+    # Fetch the number of online users
         users_response = client.users_list()
         online_users = []
         for user in users_response['members']:
@@ -180,28 +235,28 @@ def get_workspace_info():
                 except SlackApiError as e:
                     print(f"Error fetching presence for user {user['name']}: {e.response['error']}")
 
-        # Fetch current user's profile info
+    # Fetch current user's profile info
         user_profile_response = client.users_profile_get(user=auth_response['user_id'])
         user_profile = user_profile_response.get('profile', {})
 
         return {
-            'workspace': workspace_name,
-            'unread_messages': unread_messages_count,
-            'online_users': online_users,
-            'channels': channel_info,
-            'channel_members': channel_members,
-            'current_user': {
-                'name': user_profile.get('real_name', 'N/A'),
-                'title': user_profile.get('title', 'N/A'),
-                'status': user_profile.get('status_text', 'N/A')
-            }
+        'workspace': workspace_name,
+        'unread_messages': unread_messages_count,
+        'online_users': online_users,
+        'channels': channel_info,
+        'channels_members_info': channels_members_info,
+        'current_user': {
+            'name': user_profile.get('real_name', 'N/A'),
+            'title': user_profile.get('title', 'N/A'),
+            'status': user_profile.get('status_text', 'N/A')
         }
+    }
     except SlackApiError as e:
         print(f"Error fetching workspace info: {e.response['error']}")
         return None
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
-        return None
+    return None
 
 def switch_channel(channel_name):
     try:

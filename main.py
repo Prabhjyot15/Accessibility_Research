@@ -25,7 +25,7 @@ import json
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.utils import resample
-from botFunc import get_current_user_id,list_active_channels,extract_channel_name, provide_channel_link,create_channel,get_active_users,navigate_messages, switch_channel, read_all_shortcuts,read_shortcut_create_channel,read_shortcut_open_direct_messages,read_shortcut_open_drafts,read_shortcut_open_mentions_reactions,read_shortcut_open_threads,switch_channel,scrape_slack_dom_elements,provide_help,answer_general_question,get_workspace_info,get_context_from_web
+from botFunc import get_channel_members,get_current_user_id,list_active_channels,extract_channel_name, provide_channel_link,create_channel,get_active_users,navigate_messages, switch_channel, read_all_shortcuts,read_shortcut_create_channel,read_shortcut_open_direct_messages,read_shortcut_open_drafts,read_shortcut_open_mentions_reactions,read_shortcut_open_threads,switch_channel,scrape_slack_dom_elements,provide_help,answer_general_question,get_workspace_info,get_context_from_web
 
 load_dotenv()
 
@@ -105,16 +105,28 @@ def command():
         conversation_state['awaiting_follow_up'] = None
 
         return jsonify({"response": response_text})
+    # elif conversation_state.get('awaiting_follow_up') == 'channel_members':
+    #     workspace_info = conversation_state.get('workspace_info', {})
+    #     print(workspace_info)
+    #     channel_members = workspace_info.get('channel_members', [])
+    #     if "yes" in query:
+    #         if channel_members:
+    #             response_text = f"Channel members: {', '.join(channel_members)}\nDo you want me to tell you who is online? Please say yes or no"
+    #             conversation_state['awaiting_follow_up'] = 'online_users'
+    #         else:
+    #             response_text = "Failed to fetch channel members.\nDo you want me to tell you who is online? Please say yes or no"
+    #             conversation_state['awaiting_follow_up'] = 'online_users'
     elif conversation_state.get('awaiting_follow_up') == 'channel_members':
-        workspace_info = conversation_state.get('workspace_info', {})
-        channel_members = workspace_info.get('channel_members', [])
-        if "yes" in query:
-            if channel_members:
-                response_text = f"Channel members: {', '.join(channel_members)}\nDo you want me to tell you who is online? Please say yes or no"
-                conversation_state['awaiting_follow_up'] = 'online_users'
-            else:
-                response_text = "Failed to fetch channel members.\nDo you want me to tell you who is online? Please say yes or no"
-                conversation_state['awaiting_follow_up'] = 'online_users'
+        channel_name = query.strip()
+        res = get_channel_members(channel_name)
+    
+        if res:
+            response_text = f"The members in {channel_name} are: {', '.join(res)}"
+        else:
+            response_text = f"Unable to fetch members for channel '{channel_name}'."
+    
+        conversation_state['awaiting_follow_up'] = None
+
 
     elif conversation_state.get('awaiting_follow_up') == 'online_users':
         if "yes" in query and conversation_state.get('awaiting_follow_up') == 'online_users':
@@ -173,7 +185,12 @@ def command():
 
     elif intent == "list active channels":
         userid = get_current_user_id()
-        response_text = list_active_channels(userid)
+        res = list_active_channels(userid)
+        response_text = "The user is active in the following channels:", res
+
+    elif intent == "list channel members":
+        conversation_state['awaiting_follow_up'] = 'channel_members'
+        say("Please enter the channel name for which you want the member list:")   
 
     # Handling follow-up response for reading shortcuts
 
@@ -187,9 +204,9 @@ def command():
                 f"Channels:\n"
                 + '\n'.join(f" Channel Name: {channel['name']} and Unread messages: {channel['unread_messages']}" for channel in workspace_info['channels']) + '\n'
                 f" To open the unread messages view please click Ctrl Shift A\n"
-                f"Do you want me to read out the channel members? Please say yes or no"
+                f"Do you want me to read out who is online? Please say yes or no"
         )
-            conversation_state['awaiting_follow_up'] = 'channel_members'
+            conversation_state['awaiting_follow_up'] = 'online_users'
             conversation_state['workspace_info'] = workspace_info
         else:
             response_text = "Failed to fetch workspace information."
