@@ -88,7 +88,12 @@ def command():
     print(conversation_state.get('awaiting_follow_up') )
     # Determining intent
     intent = determine_intent(query)
-    if conversation_state.get('awaiting_follow_up') == 'create_channel':
+    print(intent)
+    print(conversation_state.get('awaiting_follow_up') )
+    if query == "where am i":
+        response_text = workspace_information()
+
+    elif conversation_state.get('awaiting_follow_up') == 'create_channel':
         print("right state")
         if "yes" in query:
             channel_name = query.split()[-1].strip()
@@ -132,17 +137,16 @@ def command():
         if "yes" in query and conversation_state.get('awaiting_follow_up') == 'online_users':
             workspace_info = conversation_state.get('workspace_info', {})
             online_users = workspace_info.get('online_users', [])
-        else:
-            online_users = []
-        if online_users:
-            response_text = f"Online users: {', '.join(online_users)}"
-        else:
-            response_text = "No users are currently online."
-        conversation_state['awaiting_follow_up'] = None
+            if online_users:
+                response_text = f"Online users: {', '.join(online_users)}"
+            else:
+                response_text = "No users are currently online."
+            
+            conversation_state['awaiting_follow_up'] = None
 
-    elif "no" in query and conversation_state.get('awaiting_follow_up') == 'online_users':
-        response_text = "Okay, I won't read out the names of online users."
-        conversation_state['awaiting_follow_up'] = None
+        elif "no" in query and conversation_state.get('awaiting_follow_up') == 'online_users':
+            response_text = ("Okay, I won't read out the names of online users.")
+            conversation_state['awaiting_follow_up'] = None
 
     elif "no" in query and conversation_state.get('awaiting_follow_up') == 'channel_members':
         response_text = "Okay, I won't read out the channel members.\nDo you want me to tell you who is online? Please say yes or no"
@@ -169,6 +173,7 @@ def command():
     elif "no" in query and conversation_state.get('awaiting_follow_up') == 'online_users':
         response_text = "Okay, I won't read out the names of online users."
         conversation_state['awaiting_follow_up'] = None
+
     elif intent == "greeting":
         #greetMe()
         response_text = "Hello! How can I assist you today?"
@@ -195,25 +200,14 @@ def command():
     # Handling follow-up response for reading shortcuts
 
     elif intent == "workspace overview":
-        workspace_info = get_workspace_info()
-        if workspace_info:
-            response_text = (
-                f"You are currently in the workspace: {workspace_info['workspace']}\n"
-                f"Number of unread messages: {workspace_info['unread_messages']}\n"
-                f"Number of online users: {len(workspace_info['online_users'])}\n"
-                f"Channels:\n"
-                + '\n'.join(f" Channel Name: {channel['name']} and Unread messages: {channel['unread_messages']}" for channel in workspace_info['channels']) + '\n'
-                f" To open the unread messages view please click Ctrl Shift A\n"
-                f"Do you want me to read out who is online? Please say yes or no"
-        )
-            conversation_state['awaiting_follow_up'] = 'online_users'
-            conversation_state['workspace_info'] = workspace_info
-        else:
-            response_text = "Failed to fetch workspace information."
+        response_text = workspace_information()
 
     #WIP
     elif intent == "general":
         response_text = "How can I help you"
+
+    elif intent == "keyboard_shortcut":
+        response_text = "Which shortcut do you need help with?"    
 
     elif "open threads" in query:
         say("Do you want me to read aloud the keyboard shortcuts for opening threads?")
@@ -261,6 +255,25 @@ def command():
     say(response_text)
     return jsonify({'response': response_text})
 
+
+
+def workspace_information():
+    workspace_data = get_workspace_info()
+    if workspace_data:
+        response_text = (
+                f"You are currently in the workspace: {workspace_data['workspace']}\n"
+                f"Number of unread messages: {workspace_data['unread_messages']}\n"
+                f"Number of online users: {len(workspace_data['online_users'])}\n"
+                f"Channels:\n"
+                + '\n'.join(f" Channel Name: {channel['name']} and Unread messages: {channel['unread_messages']}" for channel in workspace_data['channels']) + '\n'
+                f" To open the unread messages view please click Ctrl Shift A\n"
+                f"Do you want me to read out who is online? Please say yes or no"
+        )
+        conversation_state['awaiting_follow_up'] = 'online_users'
+        conversation_state['workspace_info'] = workspace_data
+    else:
+        response_text = "Failed to fetch workspace information."
+    return response_text
 if __name__ == "__main__":
     app.run(port=3000)
     takeCommand()
