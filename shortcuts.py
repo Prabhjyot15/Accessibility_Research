@@ -54,9 +54,9 @@ preprocessed_actions = {
 def get_best_match(query):
     query_processed = preprocess_text(query)
     actions = list(preprocessed_actions.keys())
-    print(f"Processed Query: {query_processed}")  # Debugging line
+    #print(f"Processed Query: {query_processed}")  
     best_match, score = process.extractOne(query_processed, actions, scorer=fuzz.token_sort_ratio)
-    print(f"Best Match: {best_match}, Score: {score}")  # Debugging line
+    #print(f"Best Match: {best_match}, Score: {score}") 
     # Adjusting threshold for better matching
     if score >= 60:
         return preprocessed_actions.get(best_match, None)

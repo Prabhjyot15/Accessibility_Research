@@ -35,7 +35,8 @@ from nltk import download
 from sklearn.utils import resample
 from shortcuts import shortcuts_map, preprocessed_actions, ps
 from botFunc import get_channel_members,get_current_user_id,list_active_channels,extract_channel_name, provide_channel_link,create_channel,get_active_users,navigate_messages, switch_channel, read_all_shortcuts,read_shortcut_create_channel,read_shortcut_open_direct_messages,read_shortcut_open_drafts,read_shortcut_open_mentions_reactions,read_shortcut_open_threads,switch_channel,scrape_slack_dom_elements,provide_help,answer_general_question,get_workspace_info,get_context_from_web
-
+download('wordnet')
+download('punkt')
 load_dotenv()
 
 app = Flask(__name__)
@@ -46,10 +47,7 @@ SLACK_BOT_TOKEN = os.getenv('SLACK_BOT_TOKEN')
 #client = WebClient(token=SLACK_BOT_TOKEN)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-# Global state to perform follow ups
 
-download('wordnet')
-download('punkt')
 
 def augment_text(text, num_augmented=1):
     words = word_tokenize(text)
@@ -122,8 +120,6 @@ def preprocess_query(query):
 def determine_intent(query):
     query = query.lower().strip() 
     predicted_intent = model.predict([query])
-    print("Predicted intent")
-    print(predicted_intent[0])
     return predicted_intent[0]
 
 
@@ -135,8 +131,6 @@ def command():
     print(conversation_state.get('awaiting_follow_up') )
     # Determining intent
     intent = determine_intent(query)
-    print(intent)
-    print(conversation_state.get('awaiting_follow_up') )
     if query == "where am i":
         response_text = workspace_information()
 
