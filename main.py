@@ -4,7 +4,9 @@ import os
 from speak import say
 from listen import takeCommand
 from greeting import greetMe
+from shortcuts import shortcuts_map,get_best_match
 from config import Config
+from nltk.tokenize import word_tokenize
 from sklearn.linear_model import LogisticRegression
 from botFunc import conversation_state
 from dotenv import load_dotenv
@@ -24,7 +26,14 @@ from sklearn.metrics import accuracy_score, classification_report
 import json
 import seaborn as sns
 import matplotlib.pyplot as plt
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
+from nltk.corpus import wordnet
+import random
+from nltk.tokenize import word_tokenize
+from nltk import download
 from sklearn.utils import resample
+from shortcuts import shortcuts_map, preprocessed_actions, ps
 from botFunc import get_channel_members,get_current_user_id,list_active_channels,extract_channel_name, provide_channel_link,create_channel,get_active_users,navigate_messages, switch_channel, read_all_shortcuts,read_shortcut_create_channel,read_shortcut_open_direct_messages,read_shortcut_open_drafts,read_shortcut_open_mentions_reactions,read_shortcut_open_threads,switch_channel,scrape_slack_dom_elements,provide_help,answer_general_question,get_workspace_info,get_context_from_web
 
 load_dotenv()
@@ -39,6 +48,26 @@ CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # Global state to perform follow ups
 
+download('wordnet')
+download('punkt')
+
+def augment_text(text, num_augmented=1):
+    words = word_tokenize(text)
+    augmented_texts = []
+    
+    for _ in range(num_augmented):
+        new_words = words.copy()
+        word_idx = random.randint(0, len(words) - 1)
+        synonym_list = wordnet.synsets(words[word_idx])
+        
+        if synonym_list:
+            synonym = random.choice(synonym_list).lemmas()[0].name()
+            if synonym != words[word_idx]:
+                new_words[word_idx] = synonym
+                augmented_texts.append(' '.join(new_words))
+    
+    return augmented_texts
+
 def load_and_train_model():
     with open('data.json', 'r') as f:
         data = json.load(f)
@@ -52,8 +81,18 @@ def load_and_train_model():
     ])
     df_balanced = df_balanced.sample(frac=1, random_state=42).reset_index(drop=True)
 
-    X = df_balanced['text']
-    y = df_balanced['intent']
+    augmented_data = []
+    for _, row in df_balanced.iterrows():
+        text = row['text']
+        intent = row['intent']
+        augmented_texts = augment_text(text, num_augmented=3) 
+        augmented_data.extend([(text, intent) for text in augmented_texts])
+
+    augmented_df = pd.DataFrame(augmented_data, columns=['text', 'intent'])
+    df_augmented = pd.concat([df_balanced, augmented_df]).drop_duplicates().reset_index(drop=True)
+
+    X = df_augmented['text']
+    y = df_augmented['intent']
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
@@ -74,9 +113,17 @@ def load_and_train_model():
 
 model = load_and_train_model()
 
+
+def preprocess_query(query):
+    tokens = word_tokenize(query.lower())
+    stemmed_tokens = [ps.stem(token) for token in tokens]
+    return set(stemmed_tokens)
+
 def determine_intent(query):
     query = query.lower().strip() 
     predicted_intent = model.predict([query])
+    print("Predicted intent")
+    print(predicted_intent[0])
     return predicted_intent[0]
 
 
@@ -92,6 +139,15 @@ def command():
     print(conversation_state.get('awaiting_follow_up') )
     if query == "where am i":
         response_text = workspace_information()
+
+    elif conversation_state.get('awaiting_follow_up') == 'shortcut':
+        matched_action = get_best_match(query)
+        if matched_action:
+            response_text = f"The shortcut for {matched_action} is {shortcuts_map[matched_action]}."
+        else:
+            response_text = "Sorry, I couldn't find a matching shortcut."
+
+        conversation_state['awaiting_follow_up'] = None
 
     elif conversation_state.get('awaiting_follow_up') == 'create_channel':
         print("right state")
@@ -147,6 +203,7 @@ def command():
         elif "no" in query and conversation_state.get('awaiting_follow_up') == 'online_users':
             response_text = ("Okay, I won't read out the names of online users.")
             conversation_state['awaiting_follow_up'] = None
+        conversation_state['awaiting_follow_up'] = None    
 
     elif "no" in query and conversation_state.get('awaiting_follow_up') == 'channel_members':
         response_text = "Okay, I won't read out the channel members.\nDo you want me to tell you who is online? Please say yes or no"
@@ -160,6 +217,7 @@ def command():
         elif "no" in query:
             say("Do you want me to create the channel for you? Please say 'yes' with the channel name or 'no' to cancel.")
             conversation_state['awaiting_follow_up'] = 'create_channel'
+        conversation_state['awaiting_follow_up'] = None    
 
     elif "yes" in query and conversation_state.get('awaiting_follow_up') == 'online_users':
         workspace_info = conversation_state.get('workspace_info', {})
@@ -207,7 +265,8 @@ def command():
         response_text = "How can I help you"
 
     elif intent == "keyboard_shortcut":
-        response_text = "Which shortcut do you need help with?"    
+        response_text = "Which shortcut do you need help with?" 
+        conversation_state['awaiting_follow_up'] = 'shortcut'   
 
     elif "open threads" in query:
         say("Do you want me to read aloud the keyboard shortcuts for opening threads?")
