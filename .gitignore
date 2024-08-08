@@ -2,3 +2,6 @@
 __pycache__
 .env
 node_modules
+last_active_channel.json
+openlastchannel.bat
+OpenSlackbotCHat.bat
