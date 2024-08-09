@@ -191,7 +191,6 @@ def slack_events():
     return jsonify({'status': 'ok'})
 
 
-processed_messages = set()
 
 @app.route('/slack/command', methods=['POST'])
 def slack_command():
@@ -229,11 +228,14 @@ def greet_user(channel_id):
     except SlackApiError as e:
         print(f"Error sending greeting message: {e.response['error']}")
 
+# Global state to track processed messages
+processed_messages = set()
+
 def handle_message_event(data, event):
     message_id = event.get('client_msg_id')
-    print(message_id)
+    print(f"Processing message ID: {message_id}")
+
     if message_id in processed_messages:
-        # If the message has already been processed, return early
         print(f"Duplicate message detected: {message_id}")
         return
     user = event['user']
@@ -251,7 +253,7 @@ def handle_message_event(data, event):
     # Update the last active channel for the user
     last_active_channel[SLACK_USER_ID] = channel
     save_last_active_channel()
- 
+
     if channel_type == 'im':
         if channel not in conversation_state:
             conversation_state[channel] = {'responded': False, 'awaiting_channel_name': False}
@@ -259,11 +261,12 @@ def handle_message_event(data, event):
         if conversation_state[channel]['awaiting_channel_name']:
             handle_channel_creation(channel, text)
         elif not conversation_state[channel]['responded']:
-            print("here in nested if")
-            handle_direct_message(user, text, channel,intent)
+            handle_direct_message(user, text, channel, intent)
         else:
             print(f"Already responded to a greeting in channel {channel}.")
-        processed_messages.add(message_id)    
+        
+        # Add the message ID to the processed set
+        processed_messages.add(message_id)
     else:
         print(f"Ignoring message from channel {channel_type} channel {channel}")
 
