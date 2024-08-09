@@ -49,6 +49,9 @@ from botFunc import get_channel_members,get_current_user_id,list_active_channels
 download('wordnet')
 download('punkt')
 load_dotenv()
+import pyttsx3
+
+engine = pyttsx3.init()
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
@@ -170,7 +173,6 @@ def load_last_active_channel():
 @app.route('/slack/events', methods=['POST'])
 def slack_events():
     data = request.json
-    
     if 'challenge' in data:
         return jsonify({'challenge': data['challenge']})
 
@@ -178,17 +180,18 @@ def slack_events():
         event = data['event']
         event_type = event['type']
 
-        if event_type == 'message' and 'subtype' not in event:
-            print("here")
+        if event_type == 'message' and 'subtype' not in event:          
             handle_message_event(data, event)
-        elif event_type == 'reaction_added':
+        elif event_type == 'reaction_added':           
             handle_reaction_event(event)
-        elif event_type == 'channel_created':
+        elif event_type == 'channel_created':      
             handle_channel_created_event(event)
         elif event_type == 'member_joined_channel':
             handle_member_joined_channel_event(event)
     return jsonify({'status': 'ok'})
 
+
+processed_messages = set()
 
 @app.route('/slack/command', methods=['POST'])
 def slack_command():
@@ -227,6 +230,12 @@ def greet_user(channel_id):
         print(f"Error sending greeting message: {e.response['error']}")
 
 def handle_message_event(data, event):
+    message_id = event.get('client_msg_id')
+    print(message_id)
+    if message_id in processed_messages:
+        # If the message has already been processed, return early
+        print(f"Duplicate message detected: {message_id}")
+        return
     user = event['user']
     text = event['text'].strip().lower()
     intent = determine_intent(text)
@@ -254,6 +263,7 @@ def handle_message_event(data, event):
             handle_direct_message(user, text, channel,intent)
         else:
             print(f"Already responded to a greeting in channel {channel}.")
+        processed_messages.add(message_id)    
     else:
         print(f"Ignoring message from channel {channel_type} channel {channel}")
 
@@ -278,6 +288,8 @@ def handle_member_joined_channel_event(event):
 
 def handle_direct_message(user, text, channel, intent):
     print("intent: ",intent)
+    response_text = ""
+    print("conversation state", conversation_state.get('awaiting_follow_up'))
     # Ensure conversation state is initialized
     if channel not in conversation_state:
         conversation_state[channel] = {'responded': False, 'awaiting_channel_name': False}
@@ -290,11 +302,14 @@ def handle_direct_message(user, text, channel, intent):
     # Check for greetings
     if "hello" in text or "hi" in text or "hey" in text:
         send_message(channel, f"Hello <@{user}>, how can I assist you today?")
+        if channel not in conversation_state:
+            conversation_state[channel] = {}
+
         conversation_state[channel]['responded'] = False
         return  # Early return to prevent further processing
 
     # Handle channel creation intent
-    if "create channel" in text or conversation_state[channel].get('awaiting_channel_name'):
+    elif "create channel" in text or conversation_state[channel].get('awaiting_channel_name'):
         if conversation_state[channel].get('awaiting_channel_name'):
             handle_channel_creation(channel, text)
         else:
@@ -304,44 +319,45 @@ def handle_direct_message(user, text, channel, intent):
         return  # Early return to prevent further processing
 
     # Handle "thank you"
-    if "thank you" in text:
+    elif "thank you" in text:
         send_message(channel, "You're welcome! If you have any more questions or if there's anything else you'd like to know, feel free to ask. I'm here to help!")
         if channel in conversation_state:
             del conversation_state[channel]
         return  # Early return to prevent further processing
 
     # Handle help request
-    if "help" in text:
-        help_text = (
-            "Here are the commands you can use:\n"
-            "- 'Hello', 'Hi', 'Hey' to greet the bot.\n"
-            "- 'Create channel' to create a new channel (you will be asked for the channel name).\n"
-            "- 'Active users' to get a list of active users.\n"
-            "- 'Help' to see this help message.\n"
-            "- 'Thank you' to end the conversation."
-        )
-        send_message(channel, help_text)
+    # elif "help" in text:
+    #     help_text = (
+    #         "Here are the commands you can use:\n"
+    #         "- 'Hello', 'Hi', 'Hey' to greet the bot.\n"
+    #         "- 'Create channel' to create a new channel (you will be asked for the channel name).\n"
+    #         "- 'Active users' to get a list of active users.\n"
+    #         "- 'Help' to see this help message.\n"
+    #         "- 'Thank you' to end the conversation."
+    #     )
+    #     send_message(channel, help_text)
         
-        return  # Early return to prevent further processing
+    #     return  # Early return to prevent further processing
 
     # Handle workspace information request
-    if text == "where am i":
+    elif text == "where am i":
         response_text = workspace_information()
         send_message(channel, response_text)
         
         return  # Early return to prevent further processing
 
     # Handle follow-up actions like shortcuts
-    if conversation_state.get('awaiting_follow_up') == 'shortcut':
+    elif conversation_state.get('awaiting_follow_up') == 'shortcut':
         matched_action = get_best_match(text)
         response_text = matched_action if matched_action else "Sorry, I couldn't find a matching shortcut."
         conversation_state['awaiting_follow_up'] = None
+       # say(response_text)
         send_message(channel, response_text)
         
         return  # Early return to prevent further processing
 
     # Handle follow-up actions for channel members
-    if conversation_state.get('awaiting_follow_up') == 'channel_members':
+    elif conversation_state.get('awaiting_follow_up') == 'channel_members':
         channel_name = text.strip()
         res = get_channel_members(channel_name)
         if res:
@@ -352,9 +368,38 @@ def handle_direct_message(user, text, channel, intent):
         send_message(channel, response_text)
         
         return  # Early return to prevent further processing
+    
+    elif conversation_state.get('awaiting_follow_up') == 'read_shortcut':
+        if "yes" in text:
+           # read_shortcut_create_channel()
+            response_text = "Do you want me to create the channel for you? Please say 'yes' with the channel name or 'no' to cancel."
+            conversation_state['awaiting_follow_up'] = 'create_channel'
+            send_message(channel, response_text)
+        elif "no" in text:
+            response_text = "Do you want me to create the channel for you? Please say 'yes' with the channel name or 'no' to cancel."
+            conversation_state['awaiting_follow_up'] = 'create_channel'
+            send_message(channel, response_text)   
+        return   
+
+    elif conversation_state.get('awaiting_follow_up') == 'create_channel':
+        if "yes" in text:
+            channel_name = text.split()[-1].strip()
+            channel_name = extract_channel_name(channel_name)
+            channel_id = create_channel(channel_name)
+            print(channel_id)
+            if channel_id:
+                response_text = f"Channel {channel_name} created successfully."
+            else:
+                response_text = "Failed to create channel."
+            send_message(channel, response_text)    
+        elif "no" in text:
+            response_text = "Okay, I won't create the channel."
+            send_message(channel, response_text)           
+        conversation_state['awaiting_follow_up'] = None
+        return
 
     # Handle follow-up actions for online users
-    if conversation_state.get('awaiting_follow_up') == 'online_users':
+    elif conversation_state.get('awaiting_follow_up') == 'online_users':
         if "yes" in text:
             workspace_info = conversation_state.get('workspace_info', {})
             online_users = workspace_info.get('online_users', [])
@@ -364,15 +409,14 @@ def handle_direct_message(user, text, channel, intent):
         elif "no" in text:
             response_text = "Okay, I won't read out the names of online users."
             conversation_state['awaiting_follow_up'] = None
-            send_message(channel, response_text)
-        
+            send_message(channel, response_text)   
         return  # Early return to prevent further processing
 
     # Handle other intents
-    if intent == "greeting":
-        response_text = "Hello! How can I assist you today?"
-        send_message(channel, response_text)
-        return
+    # elif intent == "greeting":
+    #     response_text = "Hello! How can I assist you today?"   
+    #     send_message(channel, response_text)
+    #     return
         
 
     elif intent == "fetch slack elements":
@@ -407,7 +451,7 @@ def handle_direct_message(user, text, channel, intent):
         send_message(channel, response_text)
         return
 
-    elif intent == "general":
+    elif intent == "general" or intent == "help":
         response_text = "How can I help you"
         send_message(channel, response_text)
         return
