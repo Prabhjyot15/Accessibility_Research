@@ -170,11 +170,7 @@ def load_last_active_channel():
 @app.route('/slack/events', methods=['POST'])
 def slack_events():
     data = request.json
-    query = data.get('command', '').lower()
-    print("Received request:", data)  # Log incoming requests for debugging
-    response_text = ""
-    # Determining intent
-    intent = determine_intent(query)
+    
     if 'challenge' in data:
         return jsonify({'challenge': data['challenge']})
 
@@ -183,6 +179,7 @@ def slack_events():
         event_type = event['type']
 
         if event_type == 'message' and 'subtype' not in event:
+            print("here")
             handle_message_event(data, event)
         elif event_type == 'reaction_added':
             handle_reaction_event(event)
@@ -190,189 +187,12 @@ def slack_events():
             handle_channel_created_event(event)
         elif event_type == 'member_joined_channel':
             handle_member_joined_channel_event(event)
-    if query == "where am i":
-        response_text = workspace_information()
-
-    elif conversation_state.get('awaiting_follow_up') == 'shortcut':
-        matched_action = get_best_match(query)
-        response_text = matched_action
-
-        conversation_state['awaiting_follow_up'] = None
-
-    elif conversation_state.get('awaiting_follow_up') == 'create_channel':
-        print("right state")
-        if "yes" in query:
-            channel_name = query.split()[-1].strip()
-            channel_name = extract_channel_name(channel_name)
-            channel_id = create_channel(channel_name)
-            print(channel_id)
-            if channel_id:
-                response_text = f"Channel {channel_name} created successfully."
-            else:
-                response_text = "Failed to create channel."
-        elif "no" in query:
-            say("Okay, I won't create the channel.")
-            response_text = "Okay, I won't create the channel."
-        conversation_state['awaiting_follow_up'] = None
-
-        return jsonify({"response": response_text})
-    # elif conversation_state.get('awaiting_follow_up') == 'channel_members':
-    #     workspace_info = conversation_state.get('workspace_info', {})
-    #     print(workspace_info)
-    #     channel_members = workspace_info.get('channel_members', [])
-    #     if "yes" in query:
-    #         if channel_members:
-    #             response_text = f"Channel members: {', '.join(channel_members)}\nDo you want me to tell you who is online? Please say yes or no"
-    #             conversation_state['awaiting_follow_up'] = 'online_users'
-    #         else:
-    #             response_text = "Failed to fetch channel members.\nDo you want me to tell you who is online? Please say yes or no"
-    #             conversation_state['awaiting_follow_up'] = 'online_users'
-    elif conversation_state.get('awaiting_follow_up') == 'channel_members':
-        channel_name = query.strip()
-        res = get_channel_members(channel_name)
-    
-        if res:
-            response_text = f"The members in {channel_name} are: {', '.join(res)}"
-        else:
-            response_text = f"Unable to fetch members for channel '{channel_name}'."
-    
-        conversation_state['awaiting_follow_up'] = None
-
-
-    elif conversation_state.get('awaiting_follow_up') == 'online_users':
-        if "yes" in query and conversation_state.get('awaiting_follow_up') == 'online_users':
-            workspace_info = conversation_state.get('workspace_info', {})
-            online_users = workspace_info.get('online_users', [])
-            if online_users:
-                response_text = f"Online users: {', '.join(online_users)}"
-            else:
-                response_text = "No users are currently online."
-            
-            conversation_state['awaiting_follow_up'] = None
-
-        elif "no" in query and conversation_state.get('awaiting_follow_up') == 'online_users':
-            response_text = ("Okay, I won't read out the names of online users.")
-            conversation_state['awaiting_follow_up'] = None
-        conversation_state['awaiting_follow_up'] = None    
-
-    elif "no" in query and conversation_state.get('awaiting_follow_up') == 'channel_members':
-        response_text = "Okay, I won't read out the channel members.\nDo you want me to tell you who is online? Please say yes or no"
-        conversation_state['awaiting_follow_up'] = 'online_users'
-
-    elif conversation_state.get('awaiting_follow_up') == 'read_shortcut':
-        if "yes" in query:
-            read_shortcut_create_channel()
-            say("Do you want me to create the channel for you? Please say 'yes' with the channel name or 'no' to cancel.")
-            conversation_state['awaiting_follow_up'] = 'create_channel'
-        elif "no" in query:
-            say("Do you want me to create the channel for you? Please say 'yes' with the channel name or 'no' to cancel.")
-            conversation_state['awaiting_follow_up'] = 'create_channel'
-        conversation_state['awaiting_follow_up'] = None    
-
-    elif "yes" in query and conversation_state.get('awaiting_follow_up') == 'online_users':
-        workspace_info = conversation_state.get('workspace_info', {})
-        online_users = workspace_info.get('online_users', [])
-        if online_users:
-            response_text = f"Online users: {', '.join(online_users)}"
-        else:
-            response_text = "No users are currently online."
-        conversation_state['awaiting_follow_up'] = None
-
-    elif "no" in query and conversation_state.get('awaiting_follow_up') == 'online_users':
-        response_text = "Okay, I won't read out the names of online users."
-        conversation_state['awaiting_follow_up'] = None
-
-    elif intent == "greeting":
-        #greetMe()
-        response_text = "Hello! How can I assist you today?"
-
-    elif intent == "fetch slack elements":
-        print(f"Received command: {query}")  # Debugging print
-        scrape_slack_dom_elements()
-        response_text = "Slack elements fetched. Check the console for details."
-
-    elif intent == "create channel":
-        response_text = "Do you want me to read aloud the keyboard shortcuts for creating a channel? yes or no"
-        conversation_state['awaiting_follow_up'] = 'read_shortcut'
-        #conversation_state['channel_name'] = query.split("create channel")[-1].strip()
-
-    elif intent == "list active channels":
-        userid = get_current_user_id()
-        res = list_active_channels(userid)
-        response_text = "The user is active in the following channels:", res
-
-    elif intent == "list channel members":
-        conversation_state['awaiting_follow_up'] = 'channel_members'
-        say("Please enter the channel name for which you want the member list:")   
-
-    # Handling follow-up response for reading shortcuts
-
-    elif intent == "workspace overview":
-        response_text = workspace_information()
-
-    #WIP
-    elif intent == "general":
-        response_text = "How can I help you"
-
-    elif intent == "keyboard_shortcut":
-        response_text = "Which shortcut do you need help with?" 
-        conversation_state['awaiting_follow_up'] = 'shortcut'   
-
-    elif "open threads" in query:
-        say("Do you want me to read aloud the keyboard shortcuts for opening threads?")
-        read_shortcut_open_threads()
-        response_text = "Functionality for opening threads is not implemented yet."
-
-    elif "open mentions and reactions" in query:
-        say("Do you want me to read aloud the keyboard shortcuts for opening mentions and reactions?")
-        read_shortcut_open_mentions_reactions()
-        response_text = "Functionality for opening mentions and reactions is not implemented yet."
-
-    elif "open drafts" in query:
-        say("Do you want me to read aloud the keyboard shortcuts for opening drafts?")
-        read_shortcut_open_drafts()
-        response_text = "Functionality for opening drafts is not implemented yet."
-
-    elif "open direct messages" in query:
-        say("Do you want me to read aloud the keyboard shortcuts for opening direct messages?")
-        read_shortcut_open_direct_messages()
-        response_text = "Functionality for opening direct messages is not implemented yet."
-
-    elif "active users" in query:
-        active_users = get_active_users()
-        if active_users:
-            response_text = f"Active users are: {', '.join(active_users)}."
-        else:
-            response_text = "Failed to fetch active users."
-
-    elif "channel link" in query:
-        channel_name = query.split("channel link")[-1].strip()
-        response_text = provide_channel_link(channel_name)
-
-    elif "switch to" in query:
-        channel_name = query.split("switch to")[-1].strip()
-        response_text = switch_channel(channel_name)
-
-    elif "read previous message" in query:
-        response_text = navigate_messages("previous")
-
-    elif "read next message" in query:
-        response_text = navigate_messages("next")  
-
-    else:
-        response_text = answer_general_question(query) 
-    say(response_text)
-    client.chat_postMessage(
-                channel="U07GFQTUC3S",
-                text=response_text
-            )
-    return jsonify({'response': response_text})
-
+    return jsonify({'status': 'ok'})
 
 
 @app.route('/slack/command', methods=['POST'])
 def slack_command():
-    data = request.json
+    data = request.form
     print(data)
 
 
@@ -409,6 +229,8 @@ def greet_user(channel_id):
 def handle_message_event(data, event):
     user = event['user']
     text = event['text'].strip().lower()
+    intent = determine_intent(text)
+
     channel = event['channel']
     channel_type = event.get('channel_type')
 
@@ -420,7 +242,7 @@ def handle_message_event(data, event):
     # Update the last active channel for the user
     last_active_channel[SLACK_USER_ID] = channel
     save_last_active_channel()
-
+ 
     if channel_type == 'im':
         if channel not in conversation_state:
             conversation_state[channel] = {'responded': False, 'awaiting_channel_name': False}
@@ -428,7 +250,8 @@ def handle_message_event(data, event):
         if conversation_state[channel]['awaiting_channel_name']:
             handle_channel_creation(channel, text)
         elif not conversation_state[channel]['responded']:
-            handle_direct_message(user, text, channel)
+            print("here in nested if")
+            handle_direct_message(user, text, channel,intent)
         else:
             print(f"Already responded to a greeting in channel {channel}.")
     else:
@@ -453,26 +276,42 @@ def handle_member_joined_channel_event(event):
     channel = event['channel']
     print(f"User {user} joined channel {channel}")
 
-def handle_direct_message(user, text, channel):
+def handle_direct_message(user, text, channel, intent):
+    print("intent: ",intent)
+    # Ensure conversation state is initialized
+    if channel not in conversation_state:
+        conversation_state[channel] = {'responded': False, 'awaiting_channel_name': False}
+
+    # Check if the bot has already responded to this specific message to avoid duplicates
+    if conversation_state[channel]['responded']:
+        print(f"Already responded to a greeting in channel {channel}.")
+        return
+
+    # Check for greetings
     if "hello" in text or "hi" in text or "hey" in text:
         send_message(channel, f"Hello <@{user}>, how can I assist you today?")
         conversation_state[channel]['responded'] = False
-    elif "create channel" in text:
-        send_message(channel, "What do you want to name the channel?")
-        conversation_state[channel]['awaiting_channel_name'] = True
-        conversation_state[channel]['responded'] = False
-    elif "active users" in text:
-        active_users = get_active_users()
-        if active_users:
-            send_message(channel, f"Active users are: {', '.join(active_users)}.")
+        return  # Early return to prevent further processing
+
+    # Handle channel creation intent
+    if "create channel" in text or conversation_state[channel].get('awaiting_channel_name'):
+        if conversation_state[channel].get('awaiting_channel_name'):
+            handle_channel_creation(channel, text)
         else:
-            send_message(channel, "Failed to fetch active users.")
-        conversation_state[channel]['responded'] = False
-    elif "thank you" in text:
+            send_message(channel, "What do you want to name the channel?")
+            
+        
+        return  # Early return to prevent further processing
+
+    # Handle "thank you"
+    if "thank you" in text:
         send_message(channel, "You're welcome! If you have any more questions or if there's anything else you'd like to know, feel free to ask. I'm here to help!")
         if channel in conversation_state:
             del conversation_state[channel]
-    elif "help" in text:
+        return  # Early return to prevent further processing
+
+    # Handle help request
+    if "help" in text:
         help_text = (
             "Here are the commands you can use:\n"
             "- 'Hello', 'Hi', 'Hey' to greet the bot.\n"
@@ -482,10 +321,159 @@ def handle_direct_message(user, text, channel):
             "- 'Thank you' to end the conversation."
         )
         send_message(channel, help_text)
-        conversation_state[channel]['responded'] = False
+        
+        return  # Early return to prevent further processing
+
+    # Handle workspace information request
+    if text == "where am i":
+        response_text = workspace_information()
+        send_message(channel, response_text)
+        
+        return  # Early return to prevent further processing
+
+    # Handle follow-up actions like shortcuts
+    if conversation_state.get('awaiting_follow_up') == 'shortcut':
+        matched_action = get_best_match(text)
+        response_text = matched_action if matched_action else "Sorry, I couldn't find a matching shortcut."
+        conversation_state['awaiting_follow_up'] = None
+        send_message(channel, response_text)
+        
+        return  # Early return to prevent further processing
+
+    # Handle follow-up actions for channel members
+    if conversation_state.get('awaiting_follow_up') == 'channel_members':
+        channel_name = text.strip()
+        res = get_channel_members(channel_name)
+        if res:
+            response_text = f"The members in {channel_name} are: {', '.join(res)}"
+        else:
+            response_text = f"Unable to fetch members for channel '{channel_name}'."
+        conversation_state['awaiting_follow_up'] = None
+        send_message(channel, response_text)
+        
+        return  # Early return to prevent further processing
+
+    # Handle follow-up actions for online users
+    if conversation_state.get('awaiting_follow_up') == 'online_users':
+        if "yes" in text:
+            workspace_info = conversation_state.get('workspace_info', {})
+            online_users = workspace_info.get('online_users', [])
+            response_text = f"Online users: {', '.join(online_users)}" if online_users else "No users are currently online."
+            conversation_state['awaiting_follow_up'] = None
+            send_message(channel, response_text)
+        elif "no" in text:
+            response_text = "Okay, I won't read out the names of online users."
+            conversation_state['awaiting_follow_up'] = None
+            send_message(channel, response_text)
+        
+        return  # Early return to prevent further processing
+
+    # Handle other intents
+    if intent == "greeting":
+        response_text = "Hello! How can I assist you today?"
+        send_message(channel, response_text)
+        return
+        
+
+    elif intent == "fetch slack elements":
+        scrape_slack_dom_elements()
+        response_text = "Slack elements fetched. Check the console for details."
+        send_message(channel, response_text)
+        return
+        
+
+    elif intent == "create channel":
+        response_text = "Do you want me to read aloud the keyboard shortcuts for creating a channel? yes or no"
+        conversation_state['awaiting_follow_up'] = 'read_shortcut'
+        send_message(channel, response_text)
+        return
+        
+
+    elif intent == "list active channels":
+        userid = get_current_user_id()
+        res = list_active_channels(userid)
+        response_text = "The user is active in the following channels:", res
+        send_message(channel, response_text)
+        return
+        
+
+    elif intent == "list channel members":
+        conversation_state['awaiting_follow_up'] = 'channel_members'
+        send_message(channel, "Please enter the channel name for which you want the member list:")
+        return
+
+    elif intent == "workspace overview":
+        response_text = workspace_information()
+        send_message(channel, response_text)
+        return
+
+    elif intent == "general":
+        response_text = "How can I help you"
+        send_message(channel, response_text)
+        return
+
+    elif intent == "keyboard_shortcut":
+        response_text = "Which shortcut do you need help with?"
+        conversation_state['awaiting_follow_up'] = 'shortcut'
+        send_message(channel, response_text)
+        return
+
+    elif "open threads" in text:
+        read_shortcut_open_threads()
+        response_text = "Functionality for opening threads is not implemented yet."
+        send_message(channel, response_text)
+        return
+
+    elif "open mentions and reactions" in text:
+        read_shortcut_open_mentions_reactions()
+        response_text = "Functionality for opening mentions and reactions is not implemented yet."
+        send_message(channel, response_text)
+        return
+
+    elif "open drafts" in text:
+        read_shortcut_open_drafts()
+        response_text = "Functionality for opening drafts is not implemented yet."
+        send_message(channel, response_text)
+        return
+
+    elif "open direct messages" in text:
+        read_shortcut_open_direct_messages()
+        response_text = "Functionality for opening direct messages is not implemented yet."
+        send_message(channel, response_text)
+        return
+
+    elif "active users" in text:
+        active_users = get_active_users()
+        response_text = f"Active users are: {', '.join(active_users)}." if active_users else "Failed to fetch active users."
+        send_message(channel, response_text)
+        return
+
+    elif "channel link" in text:
+        channel_name = text.split("channel link")[-1].strip()
+        response_text = provide_channel_link(channel_name)
+        send_message(channel, response_text)
+        return
+
+    elif "switch to" in text:
+        channel_name = text.split("switch to")[-1].strip()
+        response_text = switch_channel(channel_name)
+        send_message(channel, response_text)
+        return
+
+    elif "read previous message" in text:
+        response_text = navigate_messages("previous")
+        send_message(channel, response_text)
+        return
+
+    elif "read next message" in text:
+        response_text = navigate_messages("next")
+        send_message(channel, response_text)
+        return
+
     else:
         send_message(channel, f"<@{user}>, I didn't understand that command.")
         conversation_state[channel]['responded'] = False
+        return
 
 def handle_channel_creation(channel, text):
     channel_name = text.strip()
