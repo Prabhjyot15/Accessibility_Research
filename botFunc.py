@@ -384,8 +384,8 @@ def workspace_information():
                 f"You are currently in the workspace: {workspace_data['workspace']}\n"
                 f"Number of unread messages: {workspace_data['unread_messages']}\n"
                 f"Number of online users: {len(workspace_data['online_users'])}\n"
-                f"Channels:\n"
-                + '\n'.join(f" Channel Name: {channel['name']} and Unread messages: {channel['unread_messages']}" for channel in workspace_data['channels']) + '\n'
+                #f"Channels:\n"
+                #+ '\n'.join(f" Channel Name: {channel['name']} and Unread messages: {channel['unread_messages']}" for channel in workspace_data['channels']) + '\n'
                 f" To open the unread messages view please click Ctrl Shift A\n"
                 f"Do you want me to read out who is online? Please say yes or no"
         )
