@@ -1,4 +1,11 @@
-from  botFunc import save_last_active_channel,navigate_messages,workspace_information, greet_user,create_channel,extract_channel_name,provide_channel_link,send_message,scrape_slack_dom_elements,switch_channel,read_shortcut_create_channel,read_shortcut_create_channel,get_active_users,get_channel_members,get_context_from_web,get_current_user_id,get_workspace_info,answer_general_question,say,read_all_shortcuts,read_shortcut_open_direct_messages,read_shortcut_open_drafts,read_shortcut_open_mentions_reactions,read_shortcut_open_threads,list_active_channels
+from  botFunc import (
+    save_last_active_channel,navigate_messages,workspace_information,
+      greet_user,create_channel,extract_channel_name,provide_channel_link,send_message,
+      scrape_slack_dom_elements,switch_channel,read_shortcut_create_channel,
+      read_shortcut_create_channel,get_active_users,get_channel_members,
+      get_context_from_web,get_current_user_id,get_workspace_info,answer_general_question,
+      say,read_all_shortcuts,read_shortcut_open_direct_messages,read_shortcut_open_drafts,
+      read_shortcut_open_mentions_reactions,read_shortcut_open_threads,list_active_channels)
 from state import conversation_state, processed_messages,BATCH_FILE_PATH,SLACK_USER_ID, last_active_channel
 from model import determine_intent
 from shortcuts import get_best_match
