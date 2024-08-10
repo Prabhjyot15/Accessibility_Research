@@ -6,9 +6,12 @@ from  botFunc import (
       get_context_from_web,get_current_user_id,get_workspace_info,answer_general_question,
       say,read_all_shortcuts,read_shortcut_open_direct_messages,read_shortcut_open_drafts,
       read_shortcut_open_mentions_reactions,read_shortcut_open_threads,list_active_channels)
-from state import conversation_state, processed_messages,BATCH_FILE_PATH,SLACK_USER_ID, last_active_channel
+from state import SLACK_BOT_TOKEN,conversation_state, processed_messages,BATCH_FILE_PATH,SLACK_USER_ID, last_active_channel
 from model import determine_intent
 from shortcuts import get_best_match
+from slack_sdk import WebClient
+
+client = WebClient(token=SLACK_BOT_TOKEN)
 
 def handle_reaction_event(event):
     user = event['user']
@@ -44,7 +47,12 @@ def handle_direct_message(user, text, channel, intent):
 
     # Check for greetings
     if "hello" in text or "hi" in text or "hey" in text:
-        send_message(channel, f"Hello <@{user}>, how can I assist you today?")
+        try:
+            response = client.users_info(user=user)
+            user_name = response['user']['real_name'] 
+        except:
+            print("Error!")    
+        send_message(channel, f"Hello {user_name}, how can I assist you today?")
         if channel not in conversation_state:
             conversation_state[channel] = {}
 
@@ -191,6 +199,7 @@ def handle_direct_message(user, text, channel, intent):
 
     elif intent == "workspace overview":
         response_text = workspace_information()
+        conversation_state['awaiting_follow_up'] = 'online_users'
         send_message(channel, response_text)
         return
 
