@@ -159,6 +159,18 @@ def get_best_match(query):
 
     # Return the action if combined score meets the threshold
     if score_token_sort >= 50:
-        response_text = f"The shortcut for {query} is {shortcuts_map.get(best_match, None)}."
+        response_text = f"The shortcut for '{query}' is {shortcuts_map.get(best_match, None)}."
         return response_text
-    return "No Shortcut found. Please try again"
+    
+    # If the score is < 50, finding closest matches
+    else:
+        close_matches = process.extract(query, actions, scorer=fuzz.token_sort_ratio, limit=5)
+        close_matches = [match for match, score in close_matches if score >= 30]
+
+        if close_matches:
+            response_text = f"No exact shortcut found for '{query}'. Did you mean:\n"
+            response_text += "\n".join([f"- {match}: {shortcuts_map.get(match, None)}" for match in close_matches])
+        else:
+            response_text = "No close matches found. Please try again."
+
+        return response_text

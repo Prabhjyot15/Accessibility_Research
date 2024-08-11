@@ -406,7 +406,7 @@ def load_last_active_channel():
 
 def send_message(channel, text):
     try:
-        client.chat_postMessage(channel=channel, text=text)
+        client.chat_postMessage(channel=channel, text=str(text))
         say(text)
     except SlackApiError as e:
         print(f"Error posting message: {e.response['error']}")
