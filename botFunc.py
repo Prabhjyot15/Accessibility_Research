@@ -1,5 +1,6 @@
 import re
 import requests
+import time
 from bs4 import BeautifulSoup
 import os
 from slack_sdk import WebClient
@@ -555,16 +556,48 @@ def handle_feedback(feedback):
 
 def add_member_to_channel(channel_id, user_id):
     try:
+        #To add any user to some channel, bot has to be in that channel
+        try:
+            client.conversations_join(channel=channel_id)
+            print(f"Bot joined the channel {channel_id}.")
+        except SlackApiError as e:
+            if e.response['error'] == 'already_in_channel':
+                print(f"Bot is already in the channel {channel_id}.")
+            else:
+                print(f"Error joining channel: {e.response['error']}")
+                return None
+
         # Inviting the user to the channel
         response = client.conversations_invite(channel=channel_id, users=user_id)
         print(f"User {user_id} added to channel {channel_id}.")
+        
+        # Notifying the user via DM
+        notify_user(user_id, f"You've been added to the channel <#{channel_id}>.")
+        
         return response
     except SlackApiError as e:
-        if e.response['error'] == 'already_in_channel':
+        if e.response['error'] == 'ratelimited':
+                retry_after = int(e.response.headers['Retry-After'])
+                print(f"Rate limited. Retrying after {retry_after} seconds.")
+                time.sleep(retry_after)        
+        elif e.response['error'] == 'already_in_channel':
+            conversation_state['awaiting_follow_up'] = None
             print(f"User {user_id} is already in the channel.")
+        elif e.response['error'] == 'not_in_channel':
+            print(f"Bot is not in the channel {channel_id}.")
         else:
             print(f"Error adding member to channel: {e.response['error']}")
         return None
+
+def notify_user(user_id, message):
+    try:
+        response = client.chat_postMessage(channel=user_id, text=message)
+        print(f"Notification sent to user {user_id}.")
+        return response
+    except SlackApiError as e:
+        print(f"Error sending notification to user: {e.response['error']}")
+        return None
+
 
 
 def get_channel_id_by_name(channel_name):
@@ -579,11 +612,13 @@ def get_channel_id_by_name(channel_name):
     
 def get_user_id_by_name(user_name):
     try:
+        user_name = user_name.lower()
         response = client.users_list()
         users = response['members']
         
         for user in users:
-            if user.get('real_name') == user_name:
+            real_name = user.get('real_name')
+            if real_name and real_name.lower() == user_name:
                 return user['id']
         return None
     except SlackApiError as e:

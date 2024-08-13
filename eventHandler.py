@@ -101,6 +101,7 @@ def handle_direct_message(user, text, channel, intent):
     elif conversation_state.get('awaiting_follow_up') == 'add_user':
         try:
             user_name, channel_name = map(str.strip, text.split(","))
+            print(f"Extracted user_name: '{user_name}', channel_name: '{channel_name}'")
         except ValueError:
             send_message(channel, "Invalid format. Please provide the user name and channel name separated by a comma.")
             return
@@ -115,10 +116,12 @@ def handle_direct_message(user, text, channel, intent):
             send_message(channel, f"Channel '{channel_name}' not found. Please try again.")
             return
 
-        add_member_to_channel(channel_id, user_id)
-        send_message(channel, f"User '{user_name}' has been added to channel '{channel_name}'.")
-        
-        conversation_state['awaiting_follow_up'] = None
+        res = add_member_to_channel(channel_id, user_id)
+        if res is not None:
+            send_message(channel, f"User '{user_name}' has been invited to channel '{channel_name}'.")      
+            conversation_state['awaiting_follow_up'] = None
+        else:
+            send_message(channel, f"User '{user_name}' could not be added to '{channel_name}'. Please make sure the sure exists in the workspace and is not already in that channel")
         return        
 
     # Handle follow-up actions like shortcuts
@@ -194,7 +197,7 @@ def handle_direct_message(user, text, channel, intent):
     #     return
 
     elif intent == "add_user":
-        send_message(channel, "Please provide the username and channel name in the same order")
+        send_message(channel, "Please provide the username and channel name in the same order seperated by comma")
         conversation_state['awaiting_follow_up'] = 'add_user'
 
     elif intent == "fetch slack elements":
