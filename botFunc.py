@@ -553,6 +553,43 @@ def handle_feedback(feedback):
         f.write(feedback + '\n')
     return "Thank you for your feedback!"
 
+def add_member_to_channel(channel_id, user_id):
+    try:
+        # Inviting the user to the channel
+        response = client.conversations_invite(channel=channel_id, users=user_id)
+        print(f"User {user_id} added to channel {channel_id}.")
+        return response
+    except SlackApiError as e:
+        if e.response['error'] == 'already_in_channel':
+            print(f"User {user_id} is already in the channel.")
+        else:
+            print(f"Error adding member to channel: {e.response['error']}")
+        return None
+
+
+def get_channel_id_by_name(channel_name):
+    try:
+        channels_response = client.conversations_list(types='public_channel,private_channel')
+        channels = channels_response['channels']
+        channel = next((ch for ch in channels if ch['name'] == channel_name), None)
+        return channel['id'] if channel else None
+    except SlackApiError as e:
+        print(f"Error retrieving channel list: {e.response['error']}")
+        return None
+    
+def get_user_id_by_name(user_name):
+    try:
+        response = client.users_list()
+        users = response['members']
+        
+        for user in users:
+            if user.get('real_name') == user_name:
+                return user['id']
+        return None
+    except SlackApiError as e:
+        print(f"Error fetching users: {e.response['error']}")
+        return None
+
 def provide_channel_link(channel_name):
     try:
         channels_response = client.conversations_list(types='public_channel,private_channel')

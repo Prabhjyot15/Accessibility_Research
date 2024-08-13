@@ -1,10 +1,8 @@
 from  botFunc import (
-    save_last_active_channel,navigate_messages,workspace_information,
+    add_member_to_channel,get_user_id_by_name, get_channel_id_by_name, save_last_active_channel,navigate_messages,workspace_information,
       greet_user,create_channel,extract_channel_name,provide_channel_link,send_message,
-      scrape_slack_dom_elements,switch_channel,read_shortcut_create_channel,
-      read_shortcut_create_channel,get_active_users,get_channel_members,
-      get_context_from_web,get_current_user_id,get_workspace_info,answer_general_question,
-      say,read_all_shortcuts,read_shortcut_open_direct_messages,read_shortcut_open_drafts,
+      scrape_slack_dom_elements,switch_channel,get_active_users,get_channel_members,get_current_user_id,get_workspace_info,
+      say,read_shortcut_open_direct_messages,read_shortcut_open_drafts,
       read_shortcut_open_mentions_reactions,read_shortcut_open_threads,list_active_channels)
 from state import SLACK_BOT_TOKEN,conversation_state, processed_messages,BATCH_FILE_PATH,SLACK_USER_ID, last_active_channel
 from model import determine_intent
@@ -100,6 +98,29 @@ def handle_direct_message(user, text, channel, intent):
         
         return  # Early return to prevent further processing
 
+    elif conversation_state.get('awaiting_follow_up') == 'add_user':
+        try:
+            user_name, channel_name = map(str.strip, text.split(","))
+        except ValueError:
+            send_message(channel, "Invalid format. Please provide the user name and channel name separated by a comma.")
+            return
+        
+        user_id = get_user_id_by_name(user_name)
+        if not user_id:
+            send_message(channel, f"User '{user_name}' not found. Please try again.")
+            return
+        
+        channel_id = get_channel_id_by_name(channel_name)
+        if not channel_id:
+            send_message(channel, f"Channel '{channel_name}' not found. Please try again.")
+            return
+
+        add_member_to_channel(channel_id, user_id)
+        send_message(channel, f"User '{user_name}' has been added to channel '{channel_name}'.")
+        
+        conversation_state['awaiting_follow_up'] = None
+        return        
+
     # Handle follow-up actions like shortcuts
     elif conversation_state.get('awaiting_follow_up') == 'shortcut':
         matched_action = get_best_match(text)
@@ -173,7 +194,8 @@ def handle_direct_message(user, text, channel, intent):
     #     return
 
     elif intent == "add_user":
-        print("Test")   
+        send_message(channel, "Please provide the username and channel name in the same order")
+        conversation_state['awaiting_follow_up'] = 'add_user'
 
     elif intent == "fetch slack elements":
         scrape_slack_dom_elements()
