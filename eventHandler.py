@@ -10,6 +10,7 @@ from state import SLACK_BOT_TOKEN,conversation_state, processed_messages,BATCH_F
 from model import determine_intent
 from shortcuts import get_best_match
 from slack_sdk import WebClient
+import re
 
 client = WebClient(token=SLACK_BOT_TOKEN)
 
@@ -46,7 +47,9 @@ def handle_direct_message(user, text, channel, intent):
         return
 
     # Check for greetings
-    if "hello" in text or "hi" in text or "hey" in text:
+    greetings_pattern = r'\b(hello|hi|hey)\b'
+
+    if re.search(greetings_pattern, text, re.IGNORECASE):
         try:
             response = client.users_info(user=user)
             user_name = response['user']['real_name'] 
@@ -168,7 +171,9 @@ def handle_direct_message(user, text, channel, intent):
     #     response_text = "Hello! How can I assist you today?"   
     #     send_message(channel, response_text)
     #     return
-        
+
+    elif intent == "add_user":
+        print("Test")   
 
     elif intent == "fetch slack elements":
         scrape_slack_dom_elements()
