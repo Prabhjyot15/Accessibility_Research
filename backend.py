@@ -32,8 +32,9 @@ event_queue = queue.Queue()
 @app.route('/slack/events', methods=['POST'])
 def slack_events():
     data = request.json
-    print(data['event']['user'])
-    user_state['user_id'] = data['event']['user']
+    if data is not None and data['event'] is not None:
+        print(data['event']['user'])
+        user_state['user_id'] = data['event']['user']
     if 'challenge' in data:
         return jsonify({'challenge': data['challenge']})
 
