@@ -8,11 +8,10 @@ from slack_sdk.errors import SlackApiError
 from speak import say
 from listen import takeCommand
 import json
-from state import LAST_ACTIVE_CHANNEL_FILE,SLACK_USER_ID,BATCH_FILE_PATH, SLACK_BOT_TOKEN, last_active_channel
+from state import conversation_state,LAST_ACTIVE_CHANNEL_FILE,SLACK_USER_ID,BATCH_FILE_PATH, SLACK_BOT_TOKEN, last_active_channel
 from transformers import pipeline
 import subprocess
 
-conversation_state = {}
 
 client = WebClient(token=SLACK_BOT_TOKEN)
 
@@ -404,6 +403,42 @@ def load_last_active_channel():
     except (FileNotFoundError, json.JSONDecodeError):
         last_active_channel = {}
 
+def open_direct_message_channel(user_id, recipient_id):
+    try:
+        # Opening a direct message channel between the users
+        response = client.conversations_open(users=f"{user_id},{recipient_id}")
+        return response['channel']['id']
+    except SlackApiError as e:
+        print(f"Error opening DM channel: {e.response['error']}")
+        return None
+
+def send_direct_message(user_id, recipient_id, message):
+    try:
+        print(f"Sending message from {user_id} to {recipient_id}. Message: {message}")
+        channel_id = open_direct_message_channel(user_id, recipient_id)
+        if channel_id is None:
+            print("Failed to open DM channel.")
+            return
+        response = client.chat_postMessage(
+            channel=channel_id,
+            text=f"Message from <@{user_id}>: {message}"
+        )
+        print(f"Message sent to recipient successfully. Response: {response}")
+
+        # Acknowledging to the sender
+        client.chat_postMessage(
+            channel=user_id,
+            text="Your message has been sent successfully."
+        )
+        print("Acknowledgment sent to sender successfully.")
+
+    except SlackApiError as e:
+        print(f"Error sending message: {e.response['error']}")
+        client.chat_postMessage(
+            channel=user_id,
+            text="There was an error sending your message. Please try again."
+        )
+        print("Error notification sent to sender.")
 
 def send_message(channel, text):
     try:

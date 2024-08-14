@@ -1,10 +1,10 @@
 from  botFunc import (
-    add_member_to_channel,get_user_id_by_name, get_channel_id_by_name, save_last_active_channel,navigate_messages,workspace_information,
+    send_direct_message,add_member_to_channel,get_user_id_by_name, get_channel_id_by_name, save_last_active_channel,navigate_messages,workspace_information,
       greet_user,create_channel,extract_channel_name,provide_channel_link,send_message,
       scrape_slack_dom_elements,switch_channel,get_active_users,get_channel_members,get_current_user_id,get_workspace_info,
       say,read_shortcut_open_direct_messages,read_shortcut_open_drafts,
       read_shortcut_open_mentions_reactions,read_shortcut_open_threads,list_active_channels)
-from state import SLACK_BOT_TOKEN,conversation_state, processed_messages,BATCH_FILE_PATH,SLACK_USER_ID, last_active_channel
+from state import user_state,SLACK_BOT_TOKEN,conversation_state, processed_messages,SLACK_USER_ID, last_active_channel
 from model import determine_intent
 from shortcuts import get_best_match
 from slack_sdk import WebClient
@@ -32,6 +32,9 @@ def handle_member_joined_channel_event(event):
     print(f"User {user} joined channel {channel}")
 
 def handle_direct_message(user, text, channel, intent):
+    global conversation_state 
+    if conversation_state is None:
+        conversation_state = {}
     print("intent: ",intent)
     response_text = ""
     print("conversation state", conversation_state.get('awaiting_follow_up'))
@@ -159,6 +162,21 @@ def handle_direct_message(user, text, channel, intent):
             send_message(channel, response_text)   
         return   
 
+    elif conversation_state.get('awaiting_follow_up') == "dm_user":
+        print("USER STATE", user_state)
+        username, message = text.split(',', 1)
+        username, message =  username.strip(), message.strip()
+        if username and message:
+            recipient_id = get_user_id_by_name(username)
+            if recipient_id:
+                send_direct_message(user_state.get('user_id'), recipient_id, message)
+                conversation_state = None
+                return f"Message sent to {username}."
+            else:
+                return f"Could not find a user with the username '{username}'. Please try again."
+        else:
+            return "Please make sure to enter both a username and a message separated by a comma."
+
     elif conversation_state.get('awaiting_follow_up') == 'create_channel':
         if "yes" in text:
             channel_name = text.split()[-1].strip()
@@ -225,6 +243,11 @@ def handle_direct_message(user, text, channel, intent):
     elif intent == "list channel members":
         conversation_state['awaiting_follow_up'] = 'channel_members'
         send_message(channel, "Please enter the channel name for which you want the member list:")
+        return
+
+    elif intent == "DM_user":
+        conversation_state['awaiting_follow_up'] = "dm_user"
+        send_message(channel,"Please enter the username and the message separated by a comma ") 
         return
 
     elif intent == "workspace overview":
@@ -314,6 +337,9 @@ def handle_channel_creation(channel, text):
     conversation_state[channel]['awaiting_channel_name'] = False
 
 def handle_message_event(data, event):
+    global conversation_state
+    if conversation_state is None:
+        conversation_state = {}
     message_id = event.get('client_msg_id')
     print(f"Processing message ID: {message_id}")
 

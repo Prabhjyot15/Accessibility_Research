@@ -11,6 +11,9 @@ processed_messages = set()
 last_active_channel = {}
 LAST_ACTIVE_CHANNEL_FILE = 'last_active_channel.json'
 
+#User invoking Slack Bot
+user_state ={}
+
 SLACK_BOT_TOKEN = os.getenv('SLACK_BOT_TOKEN')
 SLACK_USER_ID = os.getenv('SLACK_USER_ID')
 BATCH_FILE_PATH = 'OpenSlackbotChat.bat' 

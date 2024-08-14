@@ -9,17 +9,9 @@ from dotenv import load_dotenv
 from nltk.corpus import wordnet
 from nltk import download
 from model import load_and_train_model
-from state import SLACK_BOT_TOKEN
-from botFunc import (open_bot_dm, load_last_active_channel, get_channel_members, 
-                     get_current_user_id, extract_channel_name, provide_channel_link, 
-                     create_channel, get_active_users, navigate_messages, switch_channel, 
-                     read_all_shortcuts, read_shortcut_create_channel, 
-                     read_shortcut_open_direct_messages, read_shortcut_open_drafts, 
-                     read_shortcut_open_mentions_reactions, read_shortcut_open_threads, 
-                     scrape_slack_dom_elements, provide_help, answer_general_question, 
-                     get_workspace_info, get_context_from_web)
+from state import SLACK_BOT_TOKEN, user_state
+from botFunc import (open_bot_dm, load_last_active_channel)
 from eventHandler import (handle_message_event, handle_channel_created_event, 
-                          handle_channel_creation, handle_direct_message, 
                           handle_member_joined_channel_event, handle_reaction_event)
 
 download('wordnet')
@@ -40,11 +32,15 @@ event_queue = queue.Queue()
 @app.route('/slack/events', methods=['POST'])
 def slack_events():
     data = request.json
+    print(data['event']['user'])
+    user_state['user_id'] = data['event']['user']
     if 'challenge' in data:
         return jsonify({'challenge': data['challenge']})
 
     if 'event' in data:
         event_type = data['event']['type']
+        if data.get('type') == 'message' and 'user' in data['event']:
+            user_state['user_id'] = data['event']['user']
         if event_type in ['message', 'reaction_added', 'channel_created', 'member_joined_channel']:
             event_queue.put(data)
             return jsonify({'status': 'ok'})
