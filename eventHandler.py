@@ -1,5 +1,5 @@
 from  botFunc import (
-    send_direct_message,add_member_to_channel,get_user_id_by_name, get_channel_id_by_name, save_last_active_channel,navigate_messages,workspace_information,
+    extract_meeting_details, schedule_google_meet, send_direct_message,add_member_to_channel,get_user_id_by_name, get_channel_id_by_name, save_last_active_channel,navigate_messages,workspace_information,
       greet_user,create_channel,extract_channel_name,provide_channel_link,send_message,
       scrape_slack_dom_elements,switch_channel,get_active_users,get_channel_members,get_current_user_id,get_workspace_info,
       say,read_shortcut_open_direct_messages,read_shortcut_open_drafts,
@@ -45,6 +45,28 @@ def handle_direct_message(user, text, channel, intent):
     # Check if the bot has already responded to this specific message to avoid duplicates
     if conversation_state[channel]['responded']:
         print(f"Already responded to a greeting in channel {channel}.")
+        return
+    
+    if "setup google meet with" in text:
+        meeting_title = text.split("setup google meet with")[1].strip()
+        conversation_state[channel]['meeting_title'] = meeting_title
+        conversation_state[channel]['awaiting_follow_up'] = 'google_meet_details'
+        send_message(channel, f"Let's set up your Google Meet titled '{meeting_title}'. Please provide the following details:\n"
+                              f"Users: (comma-separated emails)\n"
+                              f"Date: (e.g., 20-08-2024)\n"
+                              f"Time: (e.g., 10am to 12:30pm)")
+        return
+
+    # Handle the follow-up for gathering Google Meet details
+    elif conversation_state[channel].get('awaiting_follow_up') == 'google_meet_details':
+        meeting_details = extract_meeting_details(text)
+        if meeting_details:
+            meeting_details['summary'] = conversation_state[channel].get('meeting_title', 'Google Meet')
+            schedule_google_meet(user, meeting_details)
+            # Reset the conversation state
+            conversation_state[channel] = None
+        else:
+            send_message(channel, "The provided details are incomplete or incorrect. Please make sure to follow the format: Users, Date, Time.")
         return
 
     # Check for greetings

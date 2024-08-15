@@ -1,0 +1,25 @@
+import os
+import shutil
+import buildVars
+
+env = Environment(ENV=os.environ)
+
+# Add-on version
+addonVersion = buildVars.addon_info["addon_version"]
+
+# Add-on name
+addonName = buildVars.addon_info["addon_name"]
+
+# Target file name for the NVDA add-on
+targetFile = f"build/{addonName}-{addonVersion}.nvda-addon"
+
+# Files and directories to include in the add-on package
+filesToInclude = [
+    "globalPlugins/",
+    "manifest.ini",
+    "buildVars.py",
+    "readme.md"
+]
+
+# Build the NVDA add-on package
+env.Zip(targetFile, filesToInclude)

@@ -1,10 +1,12 @@
 import re
+import dateparser
 import requests
 import time
 from bs4 import BeautifulSoup
 import os
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+from calendar_integration import authenticate_google_calendar, create_event
 from speak import say
 from listen import takeCommand
 import json
@@ -13,21 +15,45 @@ from transformers import pipeline
 import subprocess
 import ctypes
 import os
-
+import pytz
+import datetime
+from googleapiclient.errors import HttpError
+import pyttsx3
+import ctypes
+from ctypes import windll
+import os
 conversation_state = {}
 
 client = WebClient(token=SLACK_BOT_TOKEN)
+# def get_nvda_focus():
+#     try:
+#         # Run a small script that interacts with the NVDA add-on to get focus info
+#         focus_info = subprocess.check_output(["python", "-c", """
+# import globalPluginHandler
+# gp = globalPluginHandler.GlobalPlugin()
+# print(gp.report_focus())
+# """])
+#         return focus_info.decode('utf-8').strip()
+#     except Exception as e:
+#         return f"Error retrieving NVDA focus: {str(e)}"
+# Load the NVDA Controller Client DLL
+nvda_controller_client = ctypes.WinDLL('./nvdaControllerClient.dll')
+
+# Define the function to send speech text to NVDA
+def nvda_speak(text):
+    text = text.encode('UTF-8')  # Encode the text as UTF-8
+    nvda_controller_client.nvdaController_speakText(ctypes.c_char_p(text))
 def get_nvda_focus():
-    try:
-        # Run a small script that interacts with the NVDA add-on to get focus info
-        focus_info = subprocess.check_output(["python", "-c", """
-import globalPluginHandler
-gp = globalPluginHandler.GlobalPlugin()
-print(gp.report_focus())
-"""])
-        return focus_info.decode('utf-8').strip()
-    except Exception as e:
-        return f"Error retrieving NVDA focus: {str(e)}"
+    # This function makes NVDA speak a specific text
+    engine = pyttsx3.init()
+    message = "You are currently using the /whereami command. This is a test message."
+    engine.say(message)
+    engine.runAndWait()
+
+    # Return the message as the current focus for feedback in Slack
+    return message
+
+
 def create_channel(channel_name):
     try:
         response = client.conversations_create(name=channel_name)
@@ -716,3 +742,92 @@ def answer_general_question(question):
     context = get_context_from_web(question)
     result = qa_pipeline(question=question, context=context)
     return result['answer']
+
+# helper function for "create event" through /setupevent
+def format_event_response(event, summary, start_time, end_time):
+    # Format the start and end times
+    start_time_formatted = start_time.strftime('%Y-%m-%d %I:%M%p %Z').lower()
+    end_time_formatted = end_time.strftime('%Y-%m-%d %I:%M%p %Z').lower()
+
+    # Create a clickable link
+    event_link = event.get('htmlLink')
+
+    response_text = (
+        f"Event created successfully!\n"
+        f"Title: {summary}\n"
+        f"Start Time: {start_time_formatted}\n"
+        f"End Time: {end_time_formatted}\n"
+        f"Link: {event_link}"
+    )
+
+    return response_text
+
+# helper function for setting up google meet
+def prompt_for_meeting_details(user_id, meeting_title):
+    try:
+        client.chat_postMessage(
+            channel=user_id,
+            text=f"Let's set up your Google Meet titled '{meeting_title}'. Please provide these details:\n"
+                 f"Users: (comma-separated emails)\n"
+                 f"Date: (e.g., 20-08-2024)\n"
+                 f"Time: (e.g., 10am to 12:30pm)"
+        )
+    except SlackApiError as e:
+        print(f"Error prompting for meeting details: {e.response['error']}")
+
+def extract_meeting_details(message_text):
+    details = {}
+    try:
+        # Clean up and extract emails
+        users_line = re.search(r'users:\s*(.+)', message_text)
+        if users_line:
+            raw_emails = users_line.group(1)
+            # Remove any Slack-specific formatting like mailto: and extract plain emails
+            emails = re.findall(r'[\w\.-]+@[\w\.-]+', raw_emails)
+            details['users'] = [email.strip() for email in emails]
+
+        # Extract date
+        date_line = re.search(r'date:\s*(.+)', message_text)
+        if date_line:
+            details['date'] = dateparser.parse(date_line.group(1).strip())
+        
+        # Extract time range
+        time_line = re.search(r'time:\s*(.+)', message_text)
+        if time_line:
+            time_range = time_line.group(1).strip().split("to")
+            if len(time_range) == 2:
+                details['start_time'] = dateparser.parse(time_range[0].strip())
+                details['end_time'] = dateparser.parse(time_range[1].strip())
+
+    except Exception as e:
+        print(f"Error extracting meeting details: {e}")
+    
+    return details
+
+def schedule_google_meet(user, meeting_details):
+    try:
+        service = authenticate_google_calendar()
+
+        # Combine date with start and end times
+        start_datetime = datetime.datetime.combine(meeting_details['date'].date(), meeting_details['start_time'].time())
+        end_datetime = datetime.datetime.combine(meeting_details['date'].date(), meeting_details['end_time'].time())
+
+        timezone = pytz.timezone('America/Los_Angeles')
+        start_time = timezone.localize(start_datetime)
+        end_time = timezone.localize(end_datetime)
+
+        summary = f"Meeting with {meeting_details.get('summary', 'Unnamed')}"
+        description = "Scheduled via Slack bot."
+
+        event = create_event(service, summary, description, start_time.isoformat(), end_time.isoformat(), attendees=meeting_details['users'])
+
+        response_text = format_event_response(event, summary, start_time, end_time)
+        client.chat_postMessage(channel=user, text=response_text)
+
+        # Reset the conversation state
+        if user in conversation_state:
+            conversation_state[user] = None
+
+    except HttpError as e:
+        print(f"Error scheduling Google Meet: {e}")
+        client.chat_postMessage(channel=user, text="There was an error scheduling your meeting. Please ensure that the email addresses are valid.")
