@@ -6,3 +6,4 @@ last_active_channel.json
 openlastchannel.bat
 OpenSlackbotCHat.bat
 credentials.json
+token.pickle
