@@ -8,13 +8,26 @@ from slack_sdk.errors import SlackApiError
 from speak import say
 from listen import takeCommand
 import json
-from state import conversation_state,LAST_ACTIVE_CHANNEL_FILE,SLACK_USER_ID,BATCH_FILE_PATH, SLACK_BOT_TOKEN, last_active_channel
+from state import conversation_state,BOT_DM_ID, LAST_ACTIVE_CHANNEL_FILE,SLACK_USER_ID,BATCH_FILE_PATH, SLACK_BOT_TOKEN, last_active_channel
 from transformers import pipeline
 import subprocess
+import ctypes
+import os
 
+conversation_state = {}
 
 client = WebClient(token=SLACK_BOT_TOKEN)
-
+def get_nvda_focus():
+    try:
+        # Run a small script that interacts with the NVDA add-on to get focus info
+        focus_info = subprocess.check_output(["python", "-c", """
+import globalPluginHandler
+gp = globalPluginHandler.GlobalPlugin()
+print(gp.report_focus())
+"""])
+        return focus_info.decode('utf-8').strip()
+    except Exception as e:
+        return f"Error retrieving NVDA focus: {str(e)}"
 def create_channel(channel_name):
     try:
         response = client.conversations_create(name=channel_name)
@@ -201,16 +214,16 @@ def open_bot_dm():
         print(f"Opened bot DM with user ID: {SLACK_USER_ID}")
         
         # Greet the user with a message
-        greet_user(SLACK_USER_ID)
+        greet_user(BOT_DM_ID,"Hi, how can I help you?")
         
     except subprocess.CalledProcessError as e:
         print(f"Failed to open bot DM: {e}")
 
-def greet_user(channel_id):
+def greet_user(channel_id,text):
     try:
         client.chat_postMessage(
             channel=channel_id,
-            text="Hi, how can I help you?"
+            text=text
         )
         print("Greeted the user in the bot's DM.")
     except SlackApiError as e:
@@ -357,6 +370,10 @@ def provide_channel_link(channel_name):
     except SlackApiError as e:
         print(f"Error providing channel link: {e.response['error']}")
         return "Failed to provide channel link."
+
+
+
+
     
 def get_context_from_web(query):
     search_url = f"https://www.google.com/search?q={query}"

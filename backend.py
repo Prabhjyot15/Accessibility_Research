@@ -10,12 +10,19 @@ from nltk.corpus import wordnet
 from nltk import download
 from model import load_and_train_model
 from state import SLACK_BOT_TOKEN, user_state
-from botFunc import (open_bot_dm, load_last_active_channel)
+from botFunc import (get_nvda_focus, open_bot_dm, load_last_active_channel, get_channel_members, 
+                     get_current_user_id, extract_channel_name, provide_channel_link, 
+                     create_channel, get_active_users, navigate_messages, switch_channel, 
+                     read_all_shortcuts, read_shortcut_create_channel, 
+                     read_shortcut_open_direct_messages, read_shortcut_open_drafts, 
+                     read_shortcut_open_mentions_reactions, read_shortcut_open_threads, 
+                     scrape_slack_dom_elements, provide_help, answer_general_question, 
+                     get_workspace_info, get_context_from_web, workspace_information)
 from eventHandler import (handle_message_event, handle_channel_created_event, 
                           handle_member_joined_channel_event, handle_reaction_event)
 
-download('wordnet')
-download('punkt')
+# download('wordnet')
+# download('punkt')
 load_dotenv()
 import pyttsx3
 engine = pyttsx3.init()
@@ -57,6 +64,28 @@ def slack_command():
             "response_type": "ephemeral",
             "text": "Opening a DM with the bot..."
         })
+    elif data.get('command') == '/whereami':
+        current_focus = get_nvda_focus()
+        response_text = f"Current NVDA Focus: {current_focus}"
+        return jsonify({
+            "response_type": "ephemeral",
+            "text": response_text
+        })
+    # if data.get('command') == '/whereami':
+    #     # response_text = workspace_information()
+    #     return jsonify({
+    #         "response_type": "ephemeral",
+    #         "text": "hereeee!"
+    #     })
+# @app.route('/slack/command/where', methods=['POST'])
+# def slack_command():
+#     data = request.form
+#     if data.get('command') == '/slackally':
+#         open_bot_dm()
+#         return jsonify({
+#             "response_type": "ephemeral",
+#             "text": "Opening a DM with the bot..."
+#         })
 
 def process_events():
     while True:

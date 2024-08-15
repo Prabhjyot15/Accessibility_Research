@@ -5,7 +5,8 @@ from pynput import keyboard
 from dotenv import load_dotenv
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
-
+from botFunc import greet_user
+from state import BOT_DM_ID
 # Load environment variables from a .env file
 load_dotenv()
 
@@ -23,6 +24,7 @@ def on_activate_open():
     try:
         subprocess.run([BATCH_FILE_PATH], check=True)
         print('Batch file executed successfully!')
+        greet_user(BOT_DM_ID,"Hi, how can I help you?")
     except subprocess.CalledProcessError as e:
         print(f'Error executing batch file: {e}')
 
@@ -50,6 +52,7 @@ def switch_back_to_last_channel():
             # Execute the batch file
             subprocess.run([LAST_CHANNEL_BAT_FILE], check=True)
             print(f"Switched back to the last channel: <#{last_channel}>")
+            greet_user(last_channel, "Switched back to the last channel.")
         except Exception as e:
             print(f"Error switching back to the last channel: {e}")
     else:

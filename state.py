@@ -17,3 +17,4 @@ user_state ={}
 SLACK_BOT_TOKEN = os.getenv('SLACK_BOT_TOKEN')
 SLACK_USER_ID = os.getenv('SLACK_USER_ID')
 BATCH_FILE_PATH = 'OpenSlackbotChat.bat' 
+BOT_DM_ID=os.getenv('BOT_DM_ID')

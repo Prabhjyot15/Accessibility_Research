@@ -95,7 +95,7 @@ def handle_direct_message(user, text, channel, intent):
     #     return  # Early return to prevent further processing
 
     # Handle workspace information request
-    elif text == "where am i":
+    elif "where am i" in text :
         response_text = workspace_information()
         send_message(channel, response_text)
         
