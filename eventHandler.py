@@ -124,7 +124,7 @@ def handle_direct_message(user, text, channel, intent):
             send_message(channel, f"User '{user_name}' has been invited to channel '{channel_name}'.")      
             conversation_state['awaiting_follow_up'] = None
         else:
-            send_message(channel, f"User '{user_name}' could not be added to '{channel_name}'. Please make sure the sure exists in the workspace and is not already in that channel")
+            send_message(channel, f"User '{user_name}' could not be added to '{channel_name}'. Please make sure the user exists in the workspace and is not already in that channel")
         return        
 
     # Handle follow-up actions like shortcuts

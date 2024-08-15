@@ -419,18 +419,28 @@ def send_direct_message(user_id, recipient_id, message):
         if channel_id is None:
             print("Failed to open DM channel.")
             return
-        response = client.chat_postMessage(
-            channel=channel_id,
-            text=f"Message from <@{user_id}>: {message}"
-        )
-        print(f"Message sent to recipient successfully. Response: {response}")
+        try:
+            response = client.chat_postMessage(
+                channel=channel_id,
+                text=f"Message from <@{user_id}>: {message}"
+            )
+            print(f"Message sent to recipient successfully. Response: {response}")
 
-        # Acknowledging to the sender
-        client.chat_postMessage(
-            channel=user_id,
-            text="Your message has been sent successfully."
-        )
-        print("Acknowledgment sent to sender successfully.")
+            # Acknowledging to the sender
+            client.chat_postMessage(
+                channel=user_id,
+                text="Your message has been sent successfully."
+            )
+            print("Acknowledgment sent to sender successfully.")
+
+        except SlackApiError as e:
+            if e.response['error'] == 'ratelimited':
+                retry_after = int(e.response.headers.get('Retry-After', 1))
+                print(f"Rate limited. Retrying after {retry_after} seconds.")
+                time.sleep(retry_after)
+                send_direct_message(user_id, recipient_id, message)
+            else:
+                raise e
 
     except SlackApiError as e:
         print(f"Error sending message: {e.response['error']}")
