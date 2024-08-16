@@ -1,9 +1,6 @@
 from  botFunc import (
-    extract_meeting_details, schedule_google_meet, send_direct_message,add_member_to_channel,get_user_id_by_name, get_channel_id_by_name, save_last_active_channel,navigate_messages,workspace_information,
-      greet_user,create_channel,extract_channel_name,provide_channel_link,send_message,
-      scrape_slack_dom_elements,switch_channel,get_active_users,get_channel_members,get_current_user_id,get_workspace_info,
-      say,read_shortcut_open_direct_messages,read_shortcut_open_drafts,
-      read_shortcut_open_mentions_reactions,read_shortcut_open_threads,list_active_channels)
+    extract_meeting_details, schedule_google_meet, send_direct_message,add_member_to_channel,get_user_id_by_name, get_channel_id_by_name, save_last_active_channel,workspace_information,
+      greet_user,create_channel,extract_channel_name,provide_channel_link,send_message,switch_channel,get_active_users,get_channel_members,get_current_user_id,list_active_channels)
 from state import user_state,SLACK_BOT_TOKEN,conversation_state, processed_messages,SLACK_USER_ID, last_active_channel
 from model import determine_intent
 from shortcuts import get_best_match
@@ -101,20 +98,6 @@ def handle_direct_message(user, text, channel, intent):
         if channel in conversation_state:
             del conversation_state[channel]
         return  # Early return to prevent further processing
-
-    # Handle help request
-    # elif "help" in text:
-    #     help_text = (
-    #         "Here are the commands you can use:\n"
-    #         "- 'Hello', 'Hi', 'Hey' to greet the bot.\n"
-    #         "- 'Create channel' to create a new channel (you will be asked for the channel name).\n"
-    #         "- 'Active users' to get a list of active users.\n"
-    #         "- 'Help' to see this help message.\n"
-    #         "- 'Thank you' to end the conversation."
-    #     )
-    #     send_message(channel, help_text)
-        
-    #     return  # Early return to prevent further processing
 
     # Handle workspace information request
     elif "where am i" in text :
@@ -230,22 +213,9 @@ def handle_direct_message(user, text, channel, intent):
             send_message(channel, response_text)   
         return  # Early return to prevent further processing
 
-    # Handle other intents
-    # elif intent == "greeting":
-    #     response_text = "Hello! How can I assist you today?"   
-    #     send_message(channel, response_text)
-    #     return
-
     elif intent == "add_user":
         send_message(channel, "Please provide the username and channel name in the same order seperated by comma")
-        conversation_state['awaiting_follow_up'] = 'add_user'
-
-    elif intent == "fetch slack elements":
-        scrape_slack_dom_elements()
-        response_text = "Slack elements fetched. Check the console for details."
-        send_message(channel, response_text)
-        return
-        
+        conversation_state['awaiting_follow_up'] = 'add_user'        
 
     elif intent == "create channel":
         response_text = "Do you want me to read aloud the keyboard shortcuts for creating a channel? yes or no"
@@ -290,26 +260,12 @@ def handle_direct_message(user, text, channel, intent):
         return
 
     elif "open threads" in text:
-        read_shortcut_open_threads()
         response_text = "Functionality for opening threads is not implemented yet."
         send_message(channel, response_text)
         return
 
-    elif "open mentions and reactions" in text:
-        read_shortcut_open_mentions_reactions()
-        response_text = "Functionality for opening mentions and reactions is not implemented yet."
-        send_message(channel, response_text)
-        return
-
     elif "open drafts" in text:
-        read_shortcut_open_drafts()
         response_text = "Functionality for opening drafts is not implemented yet."
-        send_message(channel, response_text)
-        return
-
-    elif "open direct messages" in text:
-        read_shortcut_open_direct_messages()
-        response_text = "Functionality for opening direct messages is not implemented yet."
         send_message(channel, response_text)
         return
 
@@ -328,16 +284,6 @@ def handle_direct_message(user, text, channel, intent):
     elif "switch to" in text:
         channel_name = text.split("switch to")[-1].strip()
         response_text = switch_channel(channel_name)
-        send_message(channel, response_text)
-        return
-
-    elif "read previous message" in text:
-        response_text = navigate_messages("previous")
-        send_message(channel, response_text)
-        return
-
-    elif "read next message" in text:
-        response_text = navigate_messages("next")
         send_message(channel, response_text)
         return
 

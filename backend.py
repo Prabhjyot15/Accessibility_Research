@@ -11,13 +11,7 @@ from nltk import download
 from model import load_and_train_model
 from state import SLACK_BOT_TOKEN, user_state
 from botFunc import (format_event_response, get_nvda_focus, nvda_speak, open_bot_dm, load_last_active_channel, get_channel_members, 
-                     get_current_user_id, extract_channel_name, provide_channel_link, 
-                     create_channel, get_active_users, navigate_messages, switch_channel, 
-                     read_all_shortcuts, read_shortcut_create_channel, 
-                     read_shortcut_open_direct_messages, read_shortcut_open_drafts, 
-                     read_shortcut_open_mentions_reactions, read_shortcut_open_threads, 
-                     scrape_slack_dom_elements, provide_help, answer_general_question, 
-                     get_workspace_info, get_context_from_web, workspace_information)
+                     get_workspace_info, workspace_information)
 from eventHandler import (handle_message_event, handle_channel_created_event, 
                           handle_member_joined_channel_event, handle_reaction_event)
 from calendar_integration import authenticate_google_calendar, create_event

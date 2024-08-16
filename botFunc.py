@@ -79,28 +79,6 @@ def extract_channel_name(channel_name):
     return sanitized_name
     
 
-def read_shortcut_create_channel():
-    say("To create a channel, Press Ctrl+K to open the quick launcher then type /create and Press Enter. Please follow the instructions further")
-
-def read_shortcut_open_threads():
-    say("To open threads, use Ctrl + Shift + T")
-
-def read_shortcut_open_mentions_reactions():
-    say("To open mentions and reactions, use Ctrl + Shift + M")
-
-def read_shortcut_open_drafts():
-    say("To open drafts, use Ctrl + Shift + D")
-
-def read_shortcut_open_direct_messages():
-    say("To open direct messages, use Ctrl + Shift + J")
-
-def read_all_shortcuts():
-    read_shortcut_create_channel()
-    read_shortcut_open_threads()
-    read_shortcut_open_mentions_reactions()
-    read_shortcut_open_drafts()
-    read_shortcut_open_direct_messages()
-
 def get_current_user_id():
     headers = {
         'Authorization': f'Bearer {SLACK_BOT_TOKEN}',
@@ -219,20 +197,6 @@ def get_channel_members(channel_name):
     
     return ["No members found"]
 
-def scrape_slack_dom_elements():
-    print("scrape_slack_dom_elements() called")
-    try:
-        response = requests.get('https://slack.com', headers={'User-Agent': 'Mozilla/5.0'})
-        print(f"HTTP Status Code: {response.status_code}")
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            print(soup.prettify())
-        else:
-            print(f"Failed to retrieve Slack page. Status code: {response.status_code}")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-        return None  
-
 def open_bot_dm():
     # Use the existing batch file to open the bot's DM
     try:
@@ -322,58 +286,6 @@ def get_workspace_info():
         print(f"An unexpected error occurred: {e}")
     return None
 
-def switch_channel(channel_name):
-    try:
-        channels_response = client.conversations_list(types='public_channel,private_channel')
-        channels = channels_response['channels']
-        print(f"Available channels: {[ch['name'] for ch in channels]}") 
-        channel = next((ch for ch in channels if ch['name'] == channel_name), None)
-        if channel:
-            conversation_state['current_channel_id'] = channel['id']
-            print(f"Switched to channel ID: {channel['id']}") 
-            say(f"Switched to the {channel_name} channel.")
-            return f"Switched to the {channel_name} channel."
-        else:
-            return f"Channel {channel_name} not found."
-    except SlackApiError as e:
-        print(f"Error switching channel: {e.response['error']}")
-        return "Failed to switch channel."
-
-def navigate_messages(direction):
-    channel_id = conversation_state.get('current_channel_id')
-    if not channel_id:
-        return "No channel selected. Please switch to a channel first."
-
-    try:
-        history_response = client.conversations_history(channel=channel_id, limit=2)
-        messages = history_response['messages']
-        if direction == "next":
-            if len(messages) > 1:
-                return messages[1]['text']  
-            else:
-                return "No more messages."
-        elif direction == "previous":
-            if len(messages) > 0:
-                return messages[0]['text']  
-            else:
-                return "No previous messages."
-        else:
-            return "Invalid direction."
-    except SlackApiError as e:
-        print(f"Error navigating messages: {e.response['error']}")
-        return "Failed to navigate messages."
-    
-def provide_help():
-    help_text = (
-        "Here are the commands you can use:\n"
-        "- 'Switch to [channel name]' to navigate between channels.\n"
-        "- 'Read previous/next message' to navigate messages.\n"
-        "- 'Help' to get this help message.\n"
-        "- 'Feedback [your feedback]' to provide feedback.\n"
-        "- 'Channel link [channel name]' to get a link to a specific channel."
-    )
-    return help_text
-
 def handle_feedback(feedback):
     with open('feedback.log', 'a') as f:
         f.write(feedback + '\n')
@@ -397,17 +309,6 @@ def provide_channel_link(channel_name):
         print(f"Error providing channel link: {e.response['error']}")
         return "Failed to provide channel link."
 
-
-
-
-    
-def get_context_from_web(query):
-    search_url = f"https://www.google.com/search?q={query}"
-    response = requests.get(search_url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    paragraphs = soup.find_all('p')
-    context = " ".join([para.get_text() for para in paragraphs])
-    return context
 
 def answer_general_question(question):
     return "What do you need help with?"
@@ -527,20 +428,6 @@ def get_active_users():
         print(f"Error fetching users: {e.response['error']}")
         return None
 
-def scrape_slack_dom_elements():
-    print("scrape_slack_dom_elements() called")
-    try:
-        response = requests.get('https://slack.com', headers={'User-Agent': 'Mozilla/5.0'})
-        print(f"HTTP Status Code: {response.status_code}")
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            print(soup.prettify())
-        else:
-            print(f"Failed to retrieve Slack page. Status code: {response.status_code}")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-        return None
-
 def get_workspace_info():
     try:
         auth_response = client.auth_test()
@@ -612,30 +499,6 @@ def switch_channel(channel_name):
         print(f"Error switching channel: {e.response['error']}")
         return "Failed to switch channel."
 
-def navigate_messages(direction):
-    channel_id = conversation_state.get('current_channel_id')
-    if not channel_id:
-        return "No channel selected. Please switch to a channel first."
-
-    try:
-        history_response = client.conversations_history(channel=channel_id, limit=2)
-        messages = history_response['messages']
-        if direction == "next":
-            if len(messages) > 1:
-                return messages[1]['text']
-            else:
-                return "No more messages."
-        elif direction == "previous":
-            if len(messages) > 0:
-                return messages[0]['text']
-            else:
-                return "No previous messages."
-        else:
-            return "Invalid direction."
-    except SlackApiError as e:
-        print(f"Error navigating messages: {e.response['error']}")
-        return "Failed to navigate messages."
-
 def provide_help():
     help_text = (
         "Here are the commands you can use:\n"
@@ -646,11 +509,6 @@ def provide_help():
         "- 'Channel link [channel name]' to get a link to a specific channel."
     )
     return help_text
-
-def handle_feedback(feedback):
-    with open('feedback.log', 'a') as f:
-        f.write(feedback + '\n')
-    return "Thank you for your feedback!"
 
 def add_member_to_channel(channel_id, user_id):
     try:
@@ -738,20 +596,6 @@ def provide_channel_link(channel_name):
     except SlackApiError as e:
         print(f"Error providing channel link: {e.response['error']}")
         return "Failed to provide channel link."
-
-def get_context_from_web(query):
-    search_url = f"https://www.google.com/search?q={query}"
-    response = requests.get(search_url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    paragraphs = soup.find_all('p')
-    context = " ".join([para.get_text() for para in paragraphs])
-    return context
-
-def answer_general_question(question):
-    qa_pipeline = pipeline("question-answering", model="distilbert-base-uncased-distilled-squad")
-    context = get_context_from_web(question)
-    result = qa_pipeline(question=question, context=context)
-    return result['answer']
 
 # helper function for "create event" through /setupevent
 def format_event_response(event, summary, start_time, end_time):
