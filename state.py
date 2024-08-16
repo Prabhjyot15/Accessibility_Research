@@ -12,7 +12,11 @@ last_active_channel = {}
 LAST_ACTIVE_CHANNEL_FILE = 'last_active_channel.json'
 
 #User invoking Slack Bot
-user_state ={}
+user_state = {
+    'user_id': None,
+    'voice_speed': {}
+}
+
 
 SLACK_BOT_TOKEN = os.getenv('SLACK_BOT_TOKEN')
 SLACK_USER_ID = os.getenv('SLACK_USER_ID')

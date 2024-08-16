@@ -10,7 +10,7 @@ from calendar_integration import authenticate_google_calendar, create_event
 from speak import say
 from listen import takeCommand
 import json
-from state import conversation_state,BOT_DM_ID, LAST_ACTIVE_CHANNEL_FILE,SLACK_USER_ID,BATCH_FILE_PATH, SLACK_BOT_TOKEN, last_active_channel
+from state import user_state,conversation_state,BOT_DM_ID, LAST_ACTIVE_CHANNEL_FILE,SLACK_USER_ID,BATCH_FILE_PATH, SLACK_BOT_TOKEN, last_active_channel
 from transformers import pipeline
 import subprocess
 import ctypes
@@ -493,10 +493,20 @@ def send_direct_message(user_id, recipient_id, message):
         )
         print("Error notification sent to sender.")
 
+def say_with_speed(text, speed=1.0):
+    engine = pyttsx3.init()
+    default_rate = engine.getProperty('rate')
+    engine.setProperty('rate', default_rate * speed)
+    engine.say(text)
+    engine.runAndWait()
+
 def send_message(channel, text):
     try:
         client.chat_postMessage(channel=channel, text=str(text))
-        say(text)
+        speed = user_state['voice_speed'].get(user_state['user_id'], 1.0)
+       # print(f"User ID: {channel}, Speed Retrieved: {speed}")
+        # say(text, speed=speed)
+        say_with_speed(text, speed=speed)
     except SlackApiError as e:
         print(f"Error posting message: {e.response['error']}")
 

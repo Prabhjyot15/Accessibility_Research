@@ -61,13 +61,43 @@ def slack_events():
 @app.route('/slack/command', methods=['POST'])
 def slack_command():
     data = request.form
-    text = data.get('text').lower()
+    command = data.get('command')  
+    text = data.get('text').lower().strip()
+    user_id = data.get('user_id')
     if data.get('command') == '/slackally':
         open_bot_dm()
         return jsonify({
             "response_type": "ephemeral",
             "text": "Opening a DM with the bot..."
         })
+
+    elif command == '/voice':
+        if is_float(text):
+            try:
+                speed = float(text)
+                if 0.5 <= speed <= 2.0:
+                    user_state['voice_speed'][user_id] = speed
+                    response = {
+                        "response_type": "ephemeral",
+                        "text": f"Voice speed set to {speed}x."
+                    }
+                else:
+                    response = {
+                        "response_type": "ephemeral",
+                        "text": "Please enter a speed between 0.5 and 2.0."
+                    }
+            except ValueError:
+                response = {
+                    "response_type": "ephemeral",
+                    "text": "Invalid input. Please enter a numeric value."
+                }
+        else:
+            response = {
+                "response_type": "ephemeral",
+                "text": "Invalid input. Please enter a numeric value."
+            }
+        return jsonify(response) 
+    
     elif data.get('command') == '/whereami':
         message = "You have executed the where am I command."
         nvda_speak(message)  # Make NVDA speak the message
@@ -156,6 +186,13 @@ def process_events():
         elif event_type == 'member_joined_channel':
             handle_member_joined_channel_event(event_data['event'])
         event_queue.task_done()
+
+def is_float(value):
+    try:
+        float(value)
+        return True
+    except ValueError:
+        return False
 
 if __name__ == "__main__":
     load_last_active_channel()

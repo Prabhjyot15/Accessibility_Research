@@ -368,9 +368,12 @@ def handle_message_event(data, event):
     if message_id in processed_messages:
         print(f"Duplicate message detected: {message_id}")
         return
-    user = event['user']
-    text = event['text'].strip().lower()
-    intent = determine_intent(text)
+    if 'user' in event and 'text' in event:
+        user = event['user']
+        text = event['text'].strip().lower()
+        intent = determine_intent(text)
+    else:
+        print("Key 'user' or 'text' not found in the event")
 
     channel = event['channel']
     channel_type = event.get('channel_type')
