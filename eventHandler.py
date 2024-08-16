@@ -184,20 +184,20 @@ def handle_direct_message(user, text, channel, intent):
             send_message(channel, response_text)   
         return   
 
-    elif conversation_state.get('awaiting_follow_up') == "dm_user":
-        print("USER STATE", user_state)
-        username, message = text.split(',', 1)
-        username, message =  username.strip(), message.strip()
-        if username and message:
-            recipient_id = get_user_id_by_name(username)
-            if recipient_id:
-                send_direct_message(user_state.get('user_id'), recipient_id, message)
-                conversation_state = None
-                return f"Message sent to {username}."
-            else:
-                return f"Could not find a user with the username '{username}'. Please try again."
-        else:
-            return "Please make sure to enter both a username and a message separated by a comma."
+    # elif conversation_state.get('awaiting_follow_up') == "dm_user":
+    #     print("USER STATE", user_state)
+    #     username, message = text.split(',', 1)
+    #     username, message =  username.strip(), message.strip()
+    #     if username and message:
+    #         recipient_id = get_user_id_by_name(username)
+    #         if recipient_id:
+    #             send_direct_message(user_state.get('user_id'), recipient_id, message)
+    #             conversation_state = None
+    #             return f"Message sent to {username}."
+    #         else:
+    #             return f"Could not find a user with the username '{username}'. Please try again."
+    #     else:
+    #         return "Please make sure to enter both a username and a message separated by a comma."
 
     elif conversation_state.get('awaiting_follow_up') == 'create_channel':
         if "yes" in text:
@@ -268,8 +268,8 @@ def handle_direct_message(user, text, channel, intent):
         return
 
     elif intent == "DM_user":
-        conversation_state['awaiting_follow_up'] = "dm_user"
-        send_message(channel,"Please enter the username and the message separated by a comma ") 
+        # conversation_state['awaiting_follow_up'] = "dm_user"
+        send_message(channel,"To DM a user, Press ⌘ K on Mac or Ctrl K on (Windows or Linux). Type the name of a channel or person into the search field. Press Enter to open the conversation ") 
         return
 
     elif intent == "workspace overview":
