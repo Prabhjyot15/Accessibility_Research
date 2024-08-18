@@ -15,7 +15,7 @@ nltk.download('stopwords')
 lemmatizer = WordNetLemmatizer()
 stopwords = set(nltk.corpus.stopwords.words('english'))
 shortcuts_map = {
-    "Compose a new message": "Ctrl + N",
+    "Compose a new message": "To DM a user, Press ⌘ K on Mac or Ctrl K on (Windows or Linux). Type the name of a channel or person into the search field. Press Enter to open the conversation",
     "Unsend a message": "Ctrl + Z",
     "Set your status": "/status",
     "Open your preferences": "Ctrl + ,",
