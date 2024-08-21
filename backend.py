@@ -18,6 +18,7 @@ from calendar_integration import authenticate_google_calendar, create_event
 import datetime
 import dateparser
 import pytz
+from comtypes import CoInitialize, CoUninitialize
 
 # download('wordnet')
 # download('punkt')
@@ -168,18 +169,22 @@ def slack_command():
 
 
 def process_events():
-    while True:
-        event_data = event_queue.get()
-        event_type = event_data['event']['type']
-        if event_type == 'message':
-            handle_message_event(event_data, event_data['event'])
-        elif event_type == 'reaction_added':
-            handle_reaction_event(event_data['event'])
-        elif event_type == 'channel_created':
-            handle_channel_created_event(event_data['event'])
-        elif event_type == 'member_joined_channel':
-            handle_member_joined_channel_event(event_data['event'])
-        event_queue.task_done()
+    CoInitialize()  # Initialize COM for the thread
+    try:
+        while True:
+            event_data = event_queue.get()
+            event_type = event_data['event']['type']
+            if event_type == 'message':
+                handle_message_event(event_data, event_data['event'])
+            elif event_type == 'reaction_added':
+                handle_reaction_event(event_data['event'])
+            elif event_type == 'channel_created':
+                handle_channel_created_event(event_data['event'])
+            elif event_type == 'member_joined_channel':
+                handle_member_joined_channel_event(event_data['event'])
+            event_queue.task_done()
+    finally:
+        CoUninitialize()  # Clean up COM for the thread
 
 def is_float(value):
     try:

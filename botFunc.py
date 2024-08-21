@@ -7,6 +7,7 @@ import os
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 from calendar_integration import authenticate_google_calendar, create_event
+from constants import BOT_VOICE_2
 from speak import say
 from listen import takeCommand
 import json
@@ -22,6 +23,8 @@ import pyttsx3
 import ctypes
 from ctypes import windll
 import os
+from pycaw.pycaw import AudioUtilities, ISimpleAudioVolume
+import time
 conversation_state = {}
 
 client = WebClient(token=SLACK_BOT_TOKEN)
@@ -418,17 +421,42 @@ def get_voice_speed(user_id):
 
 def say_with_speed(text, speed=1.0):
     engine = pyttsx3.init()
+    voices = engine.getProperty('voices') # Available voices
+    engine.setProperty('voice',BOT_VOICE_2)
+    # engine.setProperty('voices',voices[1].id) # Set the first voice
     default_rate = engine.getProperty('rate')
     engine.setProperty('rate', default_rate * speed)
     engine.say(text)
     engine.runAndWait()
 
+def set_application_volume(app_name, volume_level):
+    """Set the volume for a specific application."""
+    sessions = AudioUtilities.GetAllSessions()
+    for session in sessions:
+        volume = session._ctl.QueryInterface(ISimpleAudioVolume)
+        if session.Process and session.Process.name().lower() == app_name.lower():
+            volume.SetMasterVolume(volume_level, None)
+            break
+
+def mute_nvda():
+    """Mute NVDA's volume."""
+    set_application_volume("nvda.exe", 0.0)
+
+def unmute_nvda():
+    """Unmute NVDA's volume."""
+    set_application_volume("nvda.exe", 1.0)
+
+
 def send_message(channel, text):
+    mute_nvda()
     try:
         speed = get_voice_speed(user_state.get('user_id'))
         print(f"Voice speed for user {user_state.get('user_id')}: {speed}")
         client.chat_postMessage(channel=channel, text=str(text))
         say_with_speed(text, speed=speed)
+        time.sleep(2)  # Simulate the time taken to speak the message
+
+        unmute_nvda()
     except SlackApiError as e:
         print(f"Error posting message: {e.response['error']}")
 
