@@ -394,6 +394,28 @@ def send_direct_message(user_id, recipient_id, message):
         )
         print("Error notification sent to sender.")
 
+def load_user_state():
+    try:
+        with open('user_state.json', 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {'voice_speed': {}}
+
+def save_user_state(state):
+    with open('user_state.json', 'w') as f:
+        json.dump(state, f, indent=4)
+
+user_state_speed = load_user_state()
+
+def set_voice_speed(user_id, speed):
+    print(f"Setting voice speed for user {user_id} to {speed}")
+    user_state_speed['voice_speed'][user_id] = speed
+    save_user_state(user_state_speed)
+    print(f"Current user state: {user_state}")
+
+def get_voice_speed(user_id):
+    return user_state_speed['voice_speed'].get(user_id, 1.0)
+
 def say_with_speed(text, speed=1.0):
     engine = pyttsx3.init()
     default_rate = engine.getProperty('rate')
@@ -403,10 +425,9 @@ def say_with_speed(text, speed=1.0):
 
 def send_message(channel, text):
     try:
+        speed = get_voice_speed(user_state.get('user_id'))
+        print(f"Voice speed for user {user_state.get('user_id')}: {speed}")
         client.chat_postMessage(channel=channel, text=str(text))
-        speed = user_state['voice_speed'].get(user_state['user_id'], 1.0)
-       # print(f"User ID: {channel}, Speed Retrieved: {speed}")
-        # say(text, speed=speed)
         say_with_speed(text, speed=speed)
     except SlackApiError as e:
         print(f"Error posting message: {e.response['error']}")

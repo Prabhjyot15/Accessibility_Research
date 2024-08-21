@@ -10,7 +10,7 @@ from nltk.corpus import wordnet
 from nltk import download
 from model import load_and_train_model
 from state import SLACK_BOT_TOKEN, user_state
-from botFunc import (format_event_response, get_nvda_focus, nvda_speak, open_bot_dm, load_last_active_channel, get_channel_members, 
+from botFunc import (set_voice_speed,format_event_response, get_nvda_focus, nvda_speak, open_bot_dm, load_last_active_channel, get_channel_members, 
                      get_workspace_info, workspace_information)
 from eventHandler import (handle_message_event, handle_channel_created_event, 
                           handle_member_joined_channel_event, handle_reaction_event)
@@ -70,7 +70,7 @@ def slack_command():
             try:
                 speed = float(text)
                 if 0.5 <= speed <= 2.0:
-                    user_state['voice_speed'][user_id] = speed
+                    set_voice_speed(user_id, speed)
                     response = {
                         "response_type": "ephemeral",
                         "text": f"Voice speed set to {speed}x."
