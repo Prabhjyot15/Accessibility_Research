@@ -429,22 +429,36 @@ def say_with_speed(text, speed=1.0):
     engine.say(text)
     engine.runAndWait()
 
-def set_application_volume(app_name, volume_level):
-    """Set the volume for a specific application."""
-    sessions = AudioUtilities.GetAllSessions()
-    for session in sessions:
-        volume = session._ctl.QueryInterface(ISimpleAudioVolume)
-        if session.Process and session.Process.name().lower() == app_name.lower():
-            volume.SetMasterVolume(volume_level, None)
-            break
 
 def mute_nvda():
     """Mute NVDA's volume."""
-    set_application_volume("nvda.exe", 0.0)
+    set_application_volume("nvda", 0.0)
 
 def unmute_nvda():
     """Unmute NVDA's volume."""
-    set_application_volume("nvda.exe", 1.0)
+    set_application_volume("nvda", 1.0)  
+
+def set_application_volume(app_name_prefix, volume_level):
+    """Set the volume for a specific application."""
+    sessions = AudioUtilities.GetAllSessions()
+    found = False
+    for session in sessions:
+        if session.Process:
+            process_name = session.Process.name().lower()
+            process_id = session.ProcessId
+            print(f"Found session: {process_name} with PID {process_id}")
+            
+            if process_name.startswith(app_name_prefix.lower()):
+                volume = session._ctl.QueryInterface(ISimpleAudioVolume)
+                current_volume = volume.GetMasterVolume()
+                print(f"Current volume for {process_name} (PID {process_id}): {current_volume}")
+                
+                volume.SetMasterVolume(volume_level, None)
+                print(f"Volume set to {volume_level} for {process_name} (PID {process_id})")
+                found = True
+                break
+    if not found:
+        print(f"Application {app_name_prefix} not found.")
 
 
 def send_message(channel, text):
