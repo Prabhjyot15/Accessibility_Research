@@ -1,3 +1,5 @@
+This project is a research study on how to make Slack more accessible for visually impaired users. The latest code is available in automation_nlp branch.
+
 Steps to run:
 
 1. npm install
