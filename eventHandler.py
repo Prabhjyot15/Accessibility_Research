@@ -6,6 +6,7 @@ from model import determine_intent
 from shortcuts import get_best_match
 from slack_sdk import WebClient
 import re
+import logging
 
 client = WebClient(token=SLACK_BOT_TOKEN)
 
@@ -14,34 +15,34 @@ def handle_reaction_event(event):
     reaction = event['reaction']
     item = event['item']
     channel = item['channel']
-    print(f"Reaction {reaction} added by {user} in {channel}")
+    logging.log(logging.INFO,f"Reaction {reaction} added by {user} in {channel}")
 
 def handle_channel_created_event(event):
     channel = event['channel']
     channel_id = channel['id']
     channel_name = channel['name']
     creator = channel['creator']
-    print(f"Channel {channel_name} created by {creator}")
+    logging.log(logging.INFO,f"Channel {channel_name} created by {creator}")
 
 def handle_member_joined_channel_event(event):
     user = event['user']
     channel = event['channel']
-    print(f"User {user} joined channel {channel}")
+    logging.log(logging.INFO,f"User {user} joined channel {channel}")
 
 def handle_direct_message(user, text, channel, intent):
     global conversation_state 
     if conversation_state is None:
         conversation_state = {}
-    print("intent: ",intent)
+    logging.log(logging.INFO,f"intent: {intent}")
     response_text = ""
-    print("conversation state", conversation_state.get('awaiting_follow_up'))
+    logging.log(logging.INFO,"conversation state {conversation_state.get('awaiting_follow_up')}")
     # Ensure conversation state is initialized
     if channel not in conversation_state:
         conversation_state[channel] = {'responded': False, 'awaiting_channel_name': False}
 
     # Check if the bot has already responded to this specific message to avoid duplicates
     if conversation_state[channel]['responded']:
-        print(f"Already responded to a greeting in channel {channel}.")
+        logging.log(logging.INFO,f"Already responded to a greeting in channel {channel}.")
         return
     
     if "setup google meet with" in text:
@@ -74,7 +75,7 @@ def handle_direct_message(user, text, channel, intent):
             response = client.users_info(user=user)
             user_name = response['user']['real_name'] 
         except:
-            print("Error!")    
+            logging.error("Error!")    
         send_message(channel, f"Hello {user_name}, how can I assist you today?")
         if channel not in conversation_state:
             conversation_state[channel] = {}
@@ -309,17 +310,17 @@ def handle_message_event(data, event):
     if conversation_state is None:
         conversation_state = {}
     message_id = event.get('client_msg_id')
-    print(f"Processing message ID: {message_id}")
+    logging.log(logging.INFO,f"Processing message ID: {message_id}")
 
     if message_id in processed_messages:
-        print(f"Duplicate message detected: {message_id}")
+        logging.log(logging.INFO,f"Duplicate message detected: {message_id}")
         return
     if 'user' in event and 'text' in event:
         user = event['user']
         text = event['text'].strip().lower()
         intent = determine_intent(text)
     else:
-        print("Key 'user' or 'text' not found in the event")
+        logging.log(logging.INFO,"Key 'user' or 'text' not found in the event")
 
     channel = event['channel']
     channel_type = event.get('channel_type')
@@ -327,7 +328,7 @@ def handle_message_event(data, event):
     if user == data['authorizations'][0]['user_id']:
         return
 
-    print(f"Message from {user} in {channel}: {text}")
+    logging.log(logging.INFO,f"Message from {user} in {channel}: {text}")
 
     # Update the last active channel for the user
     last_active_channel[SLACK_USER_ID] = channel
@@ -342,10 +343,10 @@ def handle_message_event(data, event):
         elif not conversation_state[channel]['responded']:
             handle_direct_message(user, text, channel, intent)
         else:
-            print(f"Already responded to a greeting in channel {channel}.")
+            logging.log(logging.INFO,f"Already responded to a greeting in channel {channel}.")
         
         # Add the message ID to the processed set
         processed_messages.add(message_id)
     else:
-        print(f"Ignoring message from channel {channel_type} channel {channel}")
+        logging.log(logging.INFO,f"Ignoring message from channel {channel_type} channel {channel}")
 

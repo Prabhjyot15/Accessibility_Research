@@ -1,4 +1,13 @@
 import os
+import logging
+
+#logging setup
+logging.basicConfig(
+    filename='slack_bot.log', 
+    level=logging.INFO, 
+    format='%(asctime)s - %(levelname)s - %(message)s',  
+    datefmt='%Y-%m-%d %H:%M:%S'  
+)
 
 
 # Global conversation state for message follow ups

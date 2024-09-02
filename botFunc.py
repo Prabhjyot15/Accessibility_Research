@@ -24,6 +24,7 @@ import ctypes
 from ctypes import windll
 import os
 from pycaw.pycaw import AudioUtilities, ISimpleAudioVolume
+import logging 
 import time
 conversation_state = {}
 
@@ -62,7 +63,7 @@ def create_channel(channel_name):
         response = client.conversations_create(name=channel_name)
         return response['channel']['id']
     except SlackApiError as e:
-        print(f"Error creating channel: {e}")
+        logging.error(f"Error creating channel: {e}")
         return None
 
 def get_active_users():
@@ -71,7 +72,7 @@ def get_active_users():
         active_users = [user['name'] for user in response['members'] if user.get('presence') == 'active']
         return active_users
     except SlackApiError as e:
-        print(f"Error fetching users: {e.response['error']}")
+        logging.error(f"Error fetching users: {e.response['error']}")
         return None
     
 def extract_channel_name(channel_name):
@@ -88,17 +89,17 @@ def get_current_user_id():
     }
     response = requests.get('https://slack.com/api/auth.test', headers=headers)
     
-    print("Response Status Code:", response.status_code)
-    print("Response Content:", response.json())
+    logging.log(logging.INFO,f"Response Status Code: {response.status_code}")
+    logging.log(logging.INFO,f"Response Content: {response.json()}")
 
     if response.status_code == 200:
         data = response.json()
         if data.get('ok'):
             return data.get('user_id')
         else:
-            print("Error:", data.get('error'))
+            logging.error(f"Error: {data.get('error')}")
     else:
-        print("Failed to fetch user identity:", response.status_code)
+        logging.error(f"Failed to fetch user identity: {response.status_code}")
     
     return None
 
@@ -137,7 +138,7 @@ def list_active_channels(user_id):
             members_data = members_response.json()
             
             if not members_data.get('ok'):
-                print(f"Error fetching members for channel {channel_id}:", members_data.get('error'))
+                logging.error(f"Error fetching members for channel {channel_id}: {members_data.get('error')}")
                 continue
             
             members = members_data.get('members', [])
@@ -164,7 +165,7 @@ def get_channel_members(channel_name):
     data = response.json()
     
     if not data.get('ok'):
-        print("Error fetching channels:", data.get('error'))
+        logging.error(f"Error fetching channels: { data.get('error')}")
         return []
     
     channels = data.get('channels', [])
@@ -178,7 +179,7 @@ def get_channel_members(channel_name):
             members_data = members_response.json()
             
             if not members_data.get('ok'):
-                print(f"Error fetching members for channel {channel_id}:", members_data.get('error'))
+                logging.error(f"Error fetching members for channel {channel_id}: {members_data.get('error')}")
                 return []
             
             member_ids = members_data.get('members', [])
@@ -191,7 +192,7 @@ def get_channel_members(channel_name):
                 user_data = user_response.json()
                 
                 if not user_data.get('ok'):
-                    print(f"Error fetching user info for user {member_id}:", user_data.get('error'))
+                    logging.error(f"Error fetching user info for user {member_id}: { user_data.get('error')}")
                     continue
                 
                 member_names.append(user_data['user']['real_name'])
@@ -204,13 +205,13 @@ def open_bot_dm():
     # Use the existing batch file to open the bot's DM
     try:
         subprocess.run([BATCH_FILE_PATH], check=True)
-        print(f"Opened bot DM with user ID: {SLACK_USER_ID}")
+        logging.log(logging.INFO,f"Opened bot DM with user ID: {SLACK_USER_ID}")
         
         # Greet the user with a message
         greet_user(BOT_DM_ID,"Hi, how can I help you?")
         
     except subprocess.CalledProcessError as e:
-        print(f"Failed to open bot DM: {e}")
+        logging.error(f"Failed to open bot DM: {e}")
 
 def greet_user(channel_id,text):
     try:
@@ -218,9 +219,9 @@ def greet_user(channel_id,text):
             channel=channel_id,
             text=text
         )
-        print("Greeted the user in the bot's DM.")
+        logging.info("Greeted the user in the bot's DM.")
     except SlackApiError as e:
-        print(f"Error sending greeting message: {e.response['error']}")
+        logging.error(f"Error sending greeting message: {e.response['error']}")
 
 
 def get_workspace_info():
@@ -252,7 +253,7 @@ def get_workspace_info():
                     channels_members_info[channel['name']] = [client.users_info(user=user_id)['user']['real_name'] for user_id in members_response['members']]
 
                 except SlackApiError as e:
-                    print(f"Error fetching history for channel {channel['name']}: {e.response['error']}")
+                    logging.error(f"Error fetching history for channel {channel['name']}: {e.response['error']}")
 
     # Fetch the number of online users
         users_response = client.users_list()
@@ -264,7 +265,7 @@ def get_workspace_info():
                     if presence_response['presence'] == 'active':
                         online_users.append(user['real_name'])
                 except SlackApiError as e:
-                    print(f"Error fetching presence for user {user['name']}: {e.response['error']}")
+                    logging.error(f"Error fetching presence for user {user['name']}: {e.response['error']}")
 
     # Fetch current user's profile info
         user_profile_response = client.users_profile_get(user=auth_response['user_id'])
@@ -283,10 +284,10 @@ def get_workspace_info():
         }
     }
     except SlackApiError as e:
-        print(f"Error fetching workspace info: {e.response['error']}")
+        logging.error(f"Error fetching workspace info: {e.response['error']}")
         return None
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        logging.error(f"An unexpected error occurred: {e}")
     return None
 
 def handle_feedback(feedback):
@@ -309,7 +310,7 @@ def provide_channel_link(channel_name):
         else:
             return f"Channel {channel_name} not found."
     except SlackApiError as e:
-        print(f"Error providing channel link: {e.response['error']}")
+        logging.error(f"Error providing channel link: {e.response['error']}")
         return "Failed to provide channel link."
 
 
@@ -356,29 +357,29 @@ def open_direct_message_channel(user_id, recipient_id):
         response = client.conversations_open(users=f"{user_id},{recipient_id}")
         return response['channel']['id']
     except SlackApiError as e:
-        print(f"Error opening DM channel: {e.response['error']}")
+        logging.error(f"Error opening DM channel: {e.response['error']}")
         return None
 
 def send_direct_message(user_id, recipient_id, message):
     try:
-        print(f"Sending message from {user_id} to {recipient_id}. Message: {message}")
+        logging.log(logging.INFO,f"Sending message from {user_id} to {recipient_id}. Message: {message}")
         channel_id = open_direct_message_channel(user_id, recipient_id)
         if channel_id is None:
-            print("Failed to open DM channel.")
+            logging.error("Failed to open DM channel.")
             return
         try:
             response = client.chat_postMessage(
                 channel=channel_id,
                 text=f"Message from <@{user_id}>: {message}"
             )
-            print(f"Message sent to recipient successfully. Response: {response}")
+            logging.log(logging.INFO,f"Message sent to recipient successfully. Response: {response}")
 
             # Acknowledging to the sender
             client.chat_postMessage(
                 channel=user_id,
                 text="Your message has been sent successfully."
             )
-            print("Acknowledgment sent to sender successfully.")
+            logging.log(logging.INFO,"Acknowledgment sent to sender successfully.")
 
         except SlackApiError as e:
             if e.response['error'] == 'ratelimited':
@@ -390,12 +391,12 @@ def send_direct_message(user_id, recipient_id, message):
                 raise e
 
     except SlackApiError as e:
-        print(f"Error sending message: {e.response['error']}")
+        logging.error(f"Error sending message: {e.response['error']}")
         client.chat_postMessage(
             channel=user_id,
             text="There was an error sending your message. Please try again."
         )
-        print("Error notification sent to sender.")
+        logging.error("Error notification sent to sender.")
 
 def load_user_state():
     try:
@@ -411,10 +412,10 @@ def save_user_state(state):
 user_state_speed = load_user_state()
 
 def set_voice_speed(user_id, speed):
-    print(f"Setting voice speed for user {user_id} to {speed}")
+    logging.log(logging.INFO,f"Setting voice speed for user {user_id} to {speed}")
     user_state_speed['voice_speed'][user_id] = speed
     save_user_state(user_state_speed)
-    print(f"Current user state: {user_state}")
+    logging.log(logging.INFO,f"Current user state: {user_state}")
 
 def get_voice_speed(user_id):
     return user_state_speed['voice_speed'].get(user_id, 1.0)
@@ -446,40 +447,40 @@ def set_application_volume(app_name_prefix, volume_level):
         if session.Process:
             process_name = session.Process.name().lower()
             process_id = session.ProcessId
-            print(f"Found session: {process_name} with PID {process_id}")
+            logging.log(logging.INFO,f"Found session: {process_name} with PID {process_id}")
             
             if process_name.startswith(app_name_prefix.lower()):
                 volume = session._ctl.QueryInterface(ISimpleAudioVolume)
                 current_volume = volume.GetMasterVolume()
-                print(f"Current volume for {process_name} (PID {process_id}): {current_volume}")
+                logging.log(logging.INFO,f"Current volume for {process_name} (PID {process_id}): {current_volume}")
                 
                 volume.SetMasterVolume(volume_level, None)
-                print(f"Volume set to {volume_level} for {process_name} (PID {process_id})")
+                logging.log(logging.INFO,f"Volume set to {volume_level} for {process_name} (PID {process_id})")
                 found = True
                 break
     if not found:
-        print(f"Application {app_name_prefix} not found.")
+        logging.log(logging.INFO,f"Application {app_name_prefix} not found.")
 
 
 def send_message(channel, text):
     mute_nvda()
     try:
         speed = get_voice_speed(user_state.get('user_id'))
-        print(f"Voice speed for user {user_state.get('user_id')}: {speed}")
+        logging.log(logging.INFO,f"Voice speed for user {user_state.get('user_id')}: {speed}")
         client.chat_postMessage(channel=channel, text=str(text))
         say_with_speed(text, speed=speed)
         time.sleep(2)  # Simulate the time taken to speak the message
 
         unmute_nvda()
     except SlackApiError as e:
-        print(f"Error posting message: {e.response['error']}")
+        logging.error(f"Error posting message: {e.response['error']}")
 
 def create_channel(channel_name):
     try:
         response = client.conversations_create(name=channel_name)
         return response['channel']['id']
     except SlackApiError as e:
-        print(f"Error creating channel: {e.response['error']}")
+        logging.error(f"Error creating channel: {e.response['error']}")
         return None
 
 def get_active_users():
@@ -488,7 +489,7 @@ def get_active_users():
         active_users = [user['name'] for user in response['members'] if user.get('presence') == 'active']
         return active_users
     except SlackApiError as e:
-        print(f"Error fetching users: {e.response['error']}")
+        logging.error(f"Error fetching users: {e.response['error']}")
         return None
 
 def get_workspace_info():
@@ -512,7 +513,7 @@ def get_workspace_info():
                         'unread_messages': unread_count
                     })
                 except SlackApiError as e:
-                    print(f"Error fetching history for channel {channel['name']}: {e.response['error']}")
+                    logging.error(f"Error fetching history for channel {channel['name']}: {e.response['error']}")
 
         users_response = client.users_list()
         online_users = []
@@ -523,7 +524,7 @@ def get_workspace_info():
                     if presence_response['presence'] == 'active':
                         online_users.append(user['real_name'])
                 except SlackApiError as e:
-                    print(f"Error fetching presence for user {user['name']}: {e.response['error']}")
+                    logging.error(f"Error fetching presence for user {user['name']}: {e.response['error']}")
 
         user_profile_response = client.users_profile_get(user=auth_response['user_id'])
         user_profile = user_profile_response.get('profile', {})
@@ -540,26 +541,26 @@ def get_workspace_info():
             }
         }
     except SlackApiError as e:
-        print(f"Error fetching workspace info: {e.response['error']}")
+        logging.error(f"Error fetching workspace info: {e.response['error']}")
         return None
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        logging.error(f"An unexpected error occurred: {e}")
         return None
 
 def switch_channel(channel_name):
     try:
         channels_response = client.conversations_list(types='public_channel,private_channel')
         channels = channels_response['channels']
-        print(f"Available channels: {[ch['name'] for ch in channels]}")
+        logging.log(logging.INFO,f"Available channels: {[ch['name'] for ch in channels]}")
         channel = next((ch for ch in channels if ch['name'] == channel_name), None)
         if channel:
             conversation_state['current_channel_id'] = channel['id']
-            print(f"Switched to channel ID: {channel['id']}")
+            logging.log(logging.INFO,f"Switched to channel ID: {channel['id']}")
             return f"Switched to the {channel_name} channel."
         else:
             return f"Channel {channel_name} not found."
     except SlackApiError as e:
-        print(f"Error switching channel: {e.response['error']}")
+        logging.error(f"Error switching channel: {e.response['error']}")
         return "Failed to switch channel."
 
 def provide_help():
@@ -578,17 +579,17 @@ def add_member_to_channel(channel_id, user_id):
         #To add any user to some channel, bot has to be in that channel
         try:
             client.conversations_join(channel=channel_id)
-            print(f"Bot joined the channel {channel_id}.")
+            logging.log(logging.INFO,f"Bot joined the channel {channel_id}.")
         except SlackApiError as e:
             if e.response['error'] == 'already_in_channel':
-                print(f"Bot is already in the channel {channel_id}.")
+                logging.error(f"Bot is already in the channel {channel_id}.")
             else:
-                print(f"Error joining channel: {e.response['error']}")
+                logging.error(f"Error joining channel: {e.response['error']}")
                 return None
 
         # Inviting the user to the channel
         response = client.conversations_invite(channel=channel_id, users=user_id)
-        print(f"User {user_id} added to channel {channel_id}.")
+        logging.log(logging.INFO,f"User {user_id} added to channel {channel_id}.")
         
         # Notifying the user via DM
         notify_user(user_id, f"You've been added to the channel <#{channel_id}>.")
@@ -597,24 +598,24 @@ def add_member_to_channel(channel_id, user_id):
     except SlackApiError as e:
         if e.response['error'] == 'ratelimited':
                 retry_after = int(e.response.headers['Retry-After'])
-                print(f"Rate limited. Retrying after {retry_after} seconds.")
+                logging.error(f"Rate limited. Retrying after {retry_after} seconds.")
                 time.sleep(retry_after)        
         elif e.response['error'] == 'already_in_channel':
             conversation_state['awaiting_follow_up'] = None
-            print(f"User {user_id} is already in the channel.")
+            logging.error(f"User {user_id} is already in the channel.")
         elif e.response['error'] == 'not_in_channel':
-            print(f"Bot is not in the channel {channel_id}.")
+            logging.error(f"Bot is not in the channel {channel_id}.")
         else:
-            print(f"Error adding member to channel: {e.response['error']}")
+            logging.error(f"Error adding member to channel: {e.response['error']}")
         return None
 
 def notify_user(user_id, message):
     try:
         response = client.chat_postMessage(channel=user_id, text=message)
-        print(f"Notification sent to user {user_id}.")
+        logging.log(logging.INFO,f"Notification sent to user {user_id}.")
         return response
     except SlackApiError as e:
-        print(f"Error sending notification to user: {e.response['error']}")
+        logging.error(f"Error sending notification to user: {e.response['error']}")
         return None
 
 

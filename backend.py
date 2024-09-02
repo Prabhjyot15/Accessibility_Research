@@ -18,6 +18,7 @@ from calendar_integration import authenticate_google_calendar, create_event
 import datetime
 import dateparser
 import pytz
+import logging
 from comtypes import CoInitialize, CoUninitialize
 
 # download('wordnet')
@@ -39,7 +40,7 @@ def slack_events():
     data = request.json
     if data and 'event' in data and 'user' in data['event']:
         user_id = data['event']['user']
-        print(user_id)
+        logging.log(logging.INFO, f"User ID: {user_id}")
         user_state['user_id'] = user_id
     if 'challenge' in data:
         return jsonify({'challenge': data['challenge']})
@@ -109,7 +110,7 @@ def slack_command():
         #     "text": current_focus
         # })
     elif data.get('command') == '/setupevent':
-        print("Processing the command...")
+        logging.log(logging.INFO, "Processing the command...")
         service = authenticate_google_calendar()
 
         # Split the text to extract the event details and date-time part
